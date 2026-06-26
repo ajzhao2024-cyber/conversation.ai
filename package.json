@@ -1,0 +1,17 @@
+{
+  "name": "conversion-ai",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "node --env-file-if-exists=.env.local scripts/dev-server.js",
+    "test": "node --test",
+    "build": "vercel build"
+  },
+  "devDependencies": {
+    "vercel": "^50.1.0"
+  },
+  "engines": {
+    "node": ">=20"
+  }
+}

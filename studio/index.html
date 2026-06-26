@@ -1,0 +1,142 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <meta name="theme-color" content="#090610">
+    <title>conversion.ai Studio</title>
+    <link rel="stylesheet" href="/styles.css">
+    <link rel="stylesheet" href="/studio.css">
+  </head>
+  <body class="studio-page">
+    <header class="studio-nav">
+      <a class="studio-wordmark" href="/">conversion<span>.ai</span></a>
+      <p>AI conversation studio</p>
+      <a class="studio-back" href="/">Back to home <span aria-hidden="true">&#8592;</span></a>
+    </header>
+    <main class="app-shell studio-shell">
+      <section class="control-panel" aria-label="Conversation generator settings" data-i18n-aria="settingsAria">
+        <div class="brand-row">
+          <div>
+            <p class="eyebrow">CONVERSATION ENGINE</p>
+            <h1 data-i18n="appTitle">Conversation Studio</h1>
+          </div>
+          <span class="status-pill" id="statusPill" aria-live="polite">Ready</span>
+        </div>
+
+        <p class="studio-intro">Give the model a topic, then shape the thread for the channel and audience in front of you.</p>
+        <p class="api-notice" id="apiNotice" aria-live="polite" hidden></p>
+
+        <div class="field-grid">
+          <label class="field">
+            <span data-i18n="languageLabel">Language</span>
+            <select id="languageSelect">
+              <option value="en">English</option>
+              <option value="es">Español</option>
+              <option value="fr">Français</option>
+              <option value="pt">Português</option>
+              <option value="ja">日本語</option>
+              <option value="zh">中文</option>
+            </select>
+          </label>
+
+          <label class="field">
+            <span data-i18n="sceneLabel">Conversation</span>
+            <select id="sceneSelect"></select>
+          </label>
+        </div>
+
+        <label class="field">
+          <span data-i18n="topicLabel">Topic</span>
+          <textarea id="topicInput" rows="4" maxlength="120" placeholder="A friend wants to reschedule weekend brunch"></textarea>
+        </label>
+
+        <div class="field-grid">
+          <label class="field">
+            <span data-i18n="roundLabel">Length</span>
+            <input id="roundInput" type="range" min="3" max="8" value="4">
+            <strong class="range-value" id="roundValue">4 messages</strong>
+          </label>
+
+          <label class="field">
+            <span data-i18n="styleLabel">DM style</span>
+            <select id="styleSelect"></select>
+          </label>
+        </div>
+
+        <fieldset class="segmented" aria-label="Tone" data-i18n-aria="toneAria">
+          <legend data-i18n="toneLabel">Tone</legend>
+          <label><input type="radio" name="tone" value="natural" checked><span data-tone-label="natural">Natural</span></label>
+          <label><input type="radio" name="tone" value="casual"><span data-tone-label="casual">Casual</span></label>
+          <label><input type="radio" name="tone" value="professional"><span data-tone-label="professional">Polished</span></label>
+          <label><input type="radio" name="tone" value="dramatic"><span data-tone-label="dramatic">Dramatic</span></label>
+        </fieldset>
+
+        <div class="button-row">
+          <button class="primary-action" id="generateBtn" type="button" data-i18n="generateButton">Generate</button>
+          <button id="copyBtn" type="button" data-i18n="copyButton">Copy script</button>
+          <button id="downloadBtn" type="button" data-i18n="downloadButton">Export PNG</button>
+        </div>
+
+        <div class="script-box" aria-live="polite">
+          <div class="script-head">
+            <h2 data-i18n="scriptTitle">Script</h2>
+            <span id="messageCount">0 messages</span>
+          </div>
+          <ol id="scriptList"></ol>
+        </div>
+      </section>
+
+      <section class="preview-panel" aria-label="DM preview" data-i18n-aria="previewAria">
+        <div class="preview-caption"><span>Live preview</span><span>Instagram / WeChat</span></div>
+        <div class="device-frame" id="deviceFrame" data-style="igLight">
+          <div class="phone-screen" id="phoneScreen">
+            <div class="status-bar">
+              <span id="clockText">18:42</span>
+              <span class="standard-status" aria-hidden="true">
+                <svg class="system-signal" viewBox="0 0 20 14" fill="none"><rect x="1" y="9" width="3" height="4" rx="1"></rect><rect x="6" y="6" width="3" height="7" rx="1"></rect><rect x="11" y="3" width="3" height="10" rx="1"></rect><rect x="16" y="1" width="3" height="12" rx="1"></rect></svg>
+                <svg class="system-wifi" viewBox="0 0 20 14" fill="none"><path d="M2 4.4C6.6.5 13.4.5 18 4.4" stroke="currentColor" stroke-width="2" stroke-linecap="round"></path><path d="M5.1 7.3C7.8 5.1 12.2 5.1 14.9 7.3" stroke="currentColor" stroke-width="2" stroke-linecap="round"></path><path d="M8.4 10.1C9.4 9.4 10.6 9.4 11.6 10.1" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"></path></svg>
+                <svg class="system-battery" viewBox="0 0 25 14" fill="none"><rect x="1" y="2" width="20" height="10" rx="2" stroke="currentColor" stroke-width="1.5"></rect><path d="M23 5V9" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"></path><rect x="3.5" y="4.5" width="14" height="5" rx="1" fill="currentColor"></rect></svg>
+              </span>
+              <span class="status-icons" aria-hidden="true">
+                <span class="figma-status-signal">
+                  <img class="signal-1" src="/assets/wechat-status/signal-1.svg" alt="">
+                  <img class="signal-2" src="/assets/wechat-status/signal-2.svg" alt="">
+                  <img class="signal-3" src="/assets/wechat-status/signal-3.svg" alt="">
+                  <img class="signal-4-empty" src="/assets/wechat-status/signal-4-empty.svg" alt="">
+                  <img class="signal-1-active" src="/assets/wechat-status/signal-1-active.svg" alt="">
+                  <img class="signal-2-active" src="/assets/wechat-status/signal-2-active.svg" alt="">
+                  <img class="signal-3-active" src="/assets/wechat-status/signal-3-active.svg" alt="">
+                </span>
+                <span class="figma-status-wifi">
+                  <img class="wifi-1" src="/assets/wechat-status/wifi-1.svg" alt="">
+                  <img class="wifi-2" src="/assets/wechat-status/wifi-2.svg" alt="">
+                  <img class="wifi-3" src="/assets/wechat-status/wifi-3.svg" alt="">
+                </span>
+                <span class="figma-status-battery">
+                  <img class="battery-cap" src="/assets/wechat-status/battery-cap.svg" alt="">
+                  <img class="battery-outline" src="/assets/wechat-status/battery-outline.svg" alt="">
+                </span>
+              </span>
+            </div>
+            <header class="chat-header">
+              <button class="nav-dot" type="button" aria-label="Back" data-i18n-aria="backAria"></button>
+              <div class="profile-avatar" id="profileAvatar"><span id="headerAvatar">M</span></div>
+              <div class="profile-copy"><h2 id="chatTitle">Maya</h2><p id="chatSubtitle">Active now</p></div>
+              <div class="header-actions" aria-hidden="true"><span class="phone-icon"></span><span class="video-icon"></span></div>
+            </header>
+            <div class="chat-stream" id="chatStream"></div>
+            <div class="composer-bar">
+              <button class="camera-button" type="button" aria-label="Camera" data-i18n-aria="cameraAria"><img class="figma-composer-icon" src="/assets/wechat-composer/voice.svg" alt=""></button>
+              <div class="composer-input" data-i18n="composerPlaceholder">Message...</div>
+              <button class="mic-button" type="button" aria-label="Voice message" data-i18n-aria="voiceAria"><img class="figma-composer-icon" src="/assets/wechat-composer/sticker.svg" alt=""></button>
+              <button class="gallery-button" type="button" aria-label="Gallery" data-i18n-aria="galleryAria"><img class="figma-composer-icon" src="/assets/wechat-composer/add2.svg" alt=""></button>
+              <button class="sticker-button" type="button" aria-label="Sticker"></button>
+            </div>
+          </div>
+        </div>
+      </section>
+    </main>
+    <script type="module" src="/app.js"></script>
+  </body>
+</html>
