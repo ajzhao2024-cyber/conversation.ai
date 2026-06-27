@@ -52,6 +52,33 @@ test("handler maps a failed OpenAI request to 502", async () => {
   assert.equal(res.body.code, "upstream");
 });
 
+test("handler writes structured generation logs", async () => {
+  const entries = [];
+  const fetchImpl = async () => ({ ok: true, json: async () => ({ output_text: JSON.stringify({ title: "Launch", participants: [{ id: "me", name: "Mina", side: "me", handle: "mina" }, { id: "sam", name: "Sam", side: "them", handle: "sam" }], messages: [{ speakerId: "me", text: "We are ready." }, { speakerId: "sam", text: "Let us share it." }, { speakerId: "me", text: "I will post it today." }] }) }) });
+  const handler = createHandler({
+    env: { OPENAI_API_KEY: "test", VERCEL_ENV: "preview" },
+    fetchImpl,
+    limiter: { check: async () => ({ success: true }) },
+    logger: { info: (entry) => entries.push(entry), warn: (entry) => entries.push(entry), error: (entry) => entries.push(entry) }
+  });
+  const res = mockRes();
+
+  await handler({ method: "POST", headers: { host: "conversation.ai", "x-vercel-id": "iad1::abc" }, body: payload }, res);
+
+  assert.equal(res.code, 200);
+  assert.equal(entries.length, 1);
+  assert.deepEqual(entries[0], {
+    event: "generate_conversation",
+    status: "ok",
+    environment: "preview",
+    scene: "work",
+    tone: "casual",
+    language: "en",
+    rounds: 3,
+    vercelId: "iad1::abc"
+  });
+});
+
 test("production handler fails closed when Upstash is missing", async () => {
   const handler = createHandler({ env: { VERCEL_ENV: "production", OPENAI_API_KEY: "test" }, limiter: { check: async () => ({ success: true }) } });
   const res = mockRes();

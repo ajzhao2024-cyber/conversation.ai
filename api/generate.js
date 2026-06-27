@@ -52,6 +52,19 @@ function parseBody(req) {
   return req.body;
 }
 
+function logGeneration(logger, req, env, payload) {
+  logger.info?.({
+    event: "generate_conversation",
+    status: "ok",
+    environment: env.VERCEL_ENV || "development",
+    scene: payload.scene,
+    tone: payload.tone,
+    language: payload.language,
+    rounds: payload.rounds,
+    vercelId: req.headers?.["x-vercel-id"] || null
+  });
+}
+
 function extractOutputText(response) {
   if (typeof response.output_text === "string" && response.output_text.trim()) return response.output_text;
   const content = response.output?.flatMap((item) => item.content || []) || [];
@@ -100,7 +113,7 @@ export async function requestConversation(payload, { env = process.env, fetchImp
   return normalizeConversation(JSON.parse(raw), payload);
 }
 
-export function createHandler({ env = process.env, fetchImpl = fetch, limiter = createRateLimiter({ env, fetchImpl }) } = {}) {
+export function createHandler({ env = process.env, fetchImpl = fetch, limiter = createRateLimiter({ env, fetchImpl }), logger = console } = {}) {
   return async function handler(req, res) {
     if (req.method === "OPTIONS") {
       if (!isAllowedOrigin(req, env)) return json(res, 403, { error: "Origin is not allowed.", code: "origin" });
@@ -128,6 +141,7 @@ export function createHandler({ env = process.env, fetchImpl = fetch, limiter = 
 
     try {
       const conversation = await requestConversation(validated.value, { env, fetchImpl });
+      logGeneration(logger, req, env, validated.value);
       return json(res, 200, conversation, { "Cache-Control": "no-store" });
     } catch (error) {
       const message = error?.code === "configuration"
