@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import { buildConversationInstructions, normalizeConversation, validateGeneratePayload } from "../lib/conversation.js";
-import { mapConversationForPreview } from "../lib/studio-data.js";
+import { mapConversationForPreview, updatePreviewMessage, updatePreviewMessagesFromScript } from "../lib/studio-data.js";
 
 const request = { topic: "A founder announces a beta launch", scene: "work", tone: "natural", language: "en", rounds: 4 };
 
@@ -57,4 +57,41 @@ test("client mapping keeps ordered speakers and renderer metadata", () => {
   assert.equal(result.config.title, "Launch");
   assert.equal(result.messages[1].speaker.name, "Sam");
   assert.equal(result.messages[3].time, "12:03");
+});
+
+test("script edits update one preview message without changing renderer metadata", () => {
+  const messages = [
+    { id: "m1", speaker: { id: "me", name: "Me", side: "me" }, text: "Original", time: "12:00" },
+    { id: "m2", speaker: { id: "sam", name: "Sam", side: "them" }, text: "Before", time: "12:01" }
+  ];
+
+  const result = updatePreviewMessage(messages, 1, "  Updated reply  ");
+
+  assert.equal(result[1].text, "Updated reply");
+  assert.equal(result[1].id, "m2");
+  assert.equal(result[1].speaker, messages[1].speaker);
+  assert.equal(result[1].time, "12:01");
+  assert.equal(messages[1].text, "Before");
+});
+
+test("script edits reject blank message text", () => {
+  assert.throws(() => updatePreviewMessage([{ id: "m1", speaker: { id: "me" }, text: "Original", time: "12:00" }], 0, "   "));
+});
+
+test("combined script edits update messages line by line", () => {
+  const messages = [
+    { id: "m1", speaker: { id: "me", name: "Me", side: "me" }, text: "Original", time: "12:00" },
+    { id: "m2", speaker: { id: "kai", name: "Kai", side: "them" }, text: "Before", time: "12:01" }
+  ];
+
+  const result = updatePreviewMessagesFromScript(messages, "Me: New opener\nKai: New reply");
+
+  assert.equal(result[0].text, "New opener");
+  assert.equal(result[1].text, "New reply");
+  assert.equal(result[0].speaker, messages[0].speaker);
+  assert.equal(result[1].time, "12:01");
+});
+
+test("combined script edits reject the wrong number of message lines", () => {
+  assert.throws(() => updatePreviewMessagesFromScript([{ id: "m1", speaker: { id: "me" }, text: "Original", time: "12:00" }], "Me: One\nKai: Two"));
 });

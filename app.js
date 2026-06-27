@@ -1,4 +1,4 @@
-import { mapConversationForPreview } from "./lib/studio-data.js";
+import { formatPreviewScript, mapConversationForPreview, updatePreviewMessagesFromScript } from "./lib/studio-data.js";
 
 const els = {
   language: document.querySelector("#languageSelect"),
@@ -25,7 +25,7 @@ const els = {
 
 const SCENES = ["daily", "group", "work", "support"];
 const TONES = ["natural", "casual", "professional", "dramatic"];
-const STYLES = ["igLight", "igDark", "creator", "wechat"];
+const STYLES = ["igLight", "wechat"];
 const WECHAT_MESSAGE_AVATARS = {
   them: "/assets/wechat-message/avatar-them.png",
   me: "/assets/wechat-message/avatar-me.png"
@@ -47,7 +47,7 @@ const STAGES = [
 const LOCALIZED_CONTENT = {
   en: {
     htmlLang: "en",
-    title: "conversion.ai Studio",
+    title: "conversation.ai Studio",
     units: { messages: "messages", me: "Me", online: "Active now", seen: "Seen", today: "Today", ready: "Ready", generated: "Generated", copied: "Copied", exported: "Exported" },
     ui: {
       settingsAria: "Conversation generator settings",
@@ -234,7 +234,7 @@ const LOCALIZED_CONTENT = {
   },
   es: {
     htmlLang: "es",
-    title: "conversion.ai Studio",
+    title: "conversation.ai Studio",
     units: { messages: "mensajes", me: "Yo", online: "Activo ahora", seen: "Visto", today: "Hoy", ready: "Listo", generated: "Generado", copied: "Copiado", exported: "Exportado" },
     ui: {
       settingsAria: "Ajustes del generador de conversaciones",
@@ -284,7 +284,7 @@ const LOCALIZED_CONTENT = {
   },
   fr: {
     htmlLang: "fr",
-    title: "conversion.ai Studio",
+    title: "conversation.ai Studio",
     units: { messages: "messages", me: "Moi", online: "Actif maintenant", seen: "Vu", today: "Aujourd'hui", ready: "Prêt", generated: "Généré", copied: "Copié", exported: "Exporté" },
     ui: {
       settingsAria: "Paramètres du générateur de conversation",
@@ -334,7 +334,7 @@ const LOCALIZED_CONTENT = {
   },
   pt: {
     htmlLang: "pt",
-    title: "conversion.ai Studio",
+    title: "conversation.ai Studio",
     units: { messages: "mensagens", me: "Eu", online: "Ativo agora", seen: "Visto", today: "Hoje", ready: "Pronto", generated: "Gerado", copied: "Copiado", exported: "Exportado" },
     ui: {
       settingsAria: "Configurações do gerador de conversa",
@@ -384,7 +384,7 @@ const LOCALIZED_CONTENT = {
   },
   ja: {
     htmlLang: "ja",
-    title: "conversion.ai Studio",
+    title: "conversation.ai Studio",
     units: { messages: "件", me: "自分", online: "オンライン中", seen: "既読", today: "今日", ready: "準備完了", generated: "生成済み", copied: "コピー済み", exported: "書き出し済み" },
     ui: {
       settingsAria: "会話生成設定",
@@ -434,7 +434,7 @@ const LOCALIZED_CONTENT = {
   },
   zh: {
     htmlLang: "zh-CN",
-    title: "conversion.ai Studio",
+    title: "conversation.ai Studio",
     units: { messages: "条", me: "我", online: "当前在线", seen: "已读", today: "今天", ready: "就绪", generated: "已生成", copied: "已复制", exported: "已导出" },
     ui: {
       settingsAria: "对话生成设置",
@@ -928,6 +928,57 @@ function makeHandle(name, index) {
   return `${base}.${suffixes[index % suffixes.length]}`;
 }
 
+function speakerKey(label) {
+  return String(label || "").trim().toLocaleLowerCase();
+}
+
+function isMeLabel(label) {
+  const key = speakerKey(label);
+  return key === "me" || key === "i" || key === speakerKey(locale().units.me) || label === "我" || label === "自分";
+}
+
+function uniqueParticipantsFromMessages(messages) {
+  const byId = new Map();
+  messages.forEach((message) => {
+    if (message.speaker && !byId.has(message.speaker.id)) byId.set(message.speaker.id, message.speaker);
+  });
+  return Array.from(byId.values());
+}
+
+function makeScriptSpeakerResolver() {
+  const colors = ["#4f5bd5", "#d62976", "#fa7e1e", "#0f9f6e", "#7c3aed", "#0891b2"];
+  const byLabel = new Map();
+  const addSpeaker = (speaker) => {
+    if (!speaker) return;
+    byLabel.set(speakerKey(speaker.name), speaker);
+    byLabel.set(speakerKey(displayName(speaker)), speaker);
+    if (speaker.id === "me") byLabel.set("me", speaker);
+  };
+  (currentConfig.participants || []).forEach(addSpeaker);
+  currentMessages.forEach((message) => addSpeaker(message.speaker));
+
+  return (label, index) => {
+    const key = speakerKey(label);
+    if (byLabel.has(key)) return byLabel.get(key);
+    const meSpeaker = byLabel.get("me") || { id: "me", name: "Me", side: "me", initials: "M", color: "#d62976", handle: "my.account" };
+    if (isMeLabel(label)) {
+      byLabel.set(key, meSpeaker);
+      return meSpeaker;
+    }
+
+    const speaker = {
+      id: `script-${key.replace(/[^a-z0-9]+/gi, "-").replace(/^-|-$/g, "") || index}`,
+      name: label.trim(),
+      side: "them",
+      initials: initials(label),
+      color: colors[(byLabel.size + index) % colors.length],
+      handle: makeHandle(label, index)
+    };
+    byLabel.set(key, speaker);
+    return speaker;
+  };
+}
+
 function displayName(person) {
   if (person.id !== "me") return person.name;
   return locale().units.me;
@@ -982,7 +1033,7 @@ function formatMessageTime(baseDate, index, rng) {
 }
 
 function makeChatTitle(scene, topic, participants) {
-  if (scene === "support") return participants[1].name;
+  if (scene === "support") return participants.find((person) => person.side !== "me")?.name || participants[1]?.name || participants[0]?.name || "Chat";
   if (scene === "work" || scene === "group") {
     return participants.filter((person) => person.side !== "me").map((person) => person.name).slice(0, 2).join(", ");
   }
@@ -1212,11 +1263,41 @@ function renderReaction(className) {
 
 function renderScript() {
   els.script.innerHTML = "";
-  currentMessages.forEach((message) => {
-    const item = document.createElement("li");
-    item.innerHTML = `<b>${escapeHtml(displayName(message.speaker))}:</b> ${escapeHtml(message.text)}`;
-    els.script.append(item);
-  });
+  const item = document.createElement("li");
+  item.className = "script-combined-item";
+
+  const editor = document.createElement("textarea");
+  editor.id = "scriptEditor";
+  editor.className = "script-editor";
+  editor.rows = 8;
+  editor.value = formatPreviewScript(currentMessages, (speaker) => displayName(speaker));
+  editor.setAttribute("aria-label", locale().ui.scriptTitle);
+
+  item.append(editor);
+  els.script.append(item);
+}
+
+function updateMessageFromEditor(editor) {
+  try {
+    currentMessages = updatePreviewMessagesFromScript(currentMessages, editor.value, {
+      allowCountChange: true,
+      resolveSpeaker: makeScriptSpeakerResolver(),
+      formatTime: (index) => {
+        const date = new Date();
+        date.setSeconds(0, 0);
+        date.setMinutes(date.getMinutes() - Math.max(0, currentMessages.length - index) * 2);
+        return date.toLocaleTimeString(locale().htmlLang, { hour: "2-digit", minute: "2-digit", hour12: false });
+      }
+    });
+    currentConfig.participants = uniqueParticipantsFromMessages(currentMessages);
+    currentConfig.title = makeChatTitle(currentConfig.scene || "daily", currentConfig.topic || "", currentConfig.participants);
+    editor.removeAttribute("aria-invalid");
+    renderHeader();
+    renderChat();
+    renderCount();
+  } catch {
+    editor.setAttribute("aria-invalid", "true");
+  }
 }
 
 function renderCount() {
@@ -1228,16 +1309,6 @@ function renderCount() {
 function formatMessageCount(count, data = locale()) {
   if (data.htmlLang.startsWith("ja") || data.htmlLang.startsWith("zh")) return `${count} ${data.units.messages}`;
   return `${count} ${data.units.messages}`;
-}
-
-function escapeHtml(value) {
-  return value.replace(/[&<>"']/g, (char) => ({
-    "&": "&amp;",
-    "<": "&lt;",
-    ">": "&gt;",
-    '"': "&quot;",
-    "'": "&#39;"
-  }[char]));
 }
 
 function plainScript() {
@@ -1366,8 +1437,8 @@ function drawVideoIcon(ctx, x, y, size = 28) {
   ctx.stroke();
 }
 
-function drawCameraIcon(ctx, x, y, size = 28) {
-  beginIcon(ctx);
+function drawCameraIcon(ctx, x, y, size = 28, color = "#090909") {
+  beginIcon(ctx, color);
   roundRect(ctx, x + size * 0.16, y + size * 0.3, size * 0.68, size * 0.52, size * 0.14);
   ctx.stroke();
   ctx.beginPath();
@@ -1858,24 +1929,25 @@ async function renderCanvas() {
   ctx.fillStyle = "#ffffff";
   ctx.fillRect(screenX, composerY, screenW, composerH);
 
-  drawCameraIcon(ctx, screenX + 22, composerY + 15, 28);
+  ctx.fillStyle = "#009dff";
+  ctx.beginPath();
+  ctx.arc(screenX + 34, composerY + 34, 17, 0, Math.PI * 2);
+  ctx.fill();
+  drawCameraIcon(ctx, screenX + 20, composerY + 20, 28, "#ffffff");
 
-  ctx.fillStyle = "#090909";
-  roundRect(ctx, screenX + 63, composerY + 14, screenW - 178, 38, 19);
+  ctx.fillStyle = "#f6f7f9";
+  roundRect(ctx, screenX + 64, composerY + 14, screenW - 178, 40, 20);
   ctx.fill();
-  ctx.fillStyle = "#ece6c2";
-  roundRect(ctx, screenX + 64, composerY + 12, screenW - 178, 38, 19);
-  ctx.fill();
-  ctx.strokeStyle = "#090909";
-  ctx.lineWidth = 2;
+  ctx.strokeStyle = "#e6e8ee";
+  ctx.lineWidth = 1;
   ctx.stroke();
   ctx.fillStyle = "#8f929a";
-  ctx.font = `16px ${fontFamily}`;
-  ctx.fillText(data.ui.composerPlaceholder, screenX + 78, composerY + 37);
+  ctx.font = `15px ${fontFamily}`;
+  ctx.fillText(data.ui.composerPlaceholder, screenX + 80, composerY + 39);
 
-  drawVoiceIcon(ctx, screenX + screenW - 119, composerY + 15, 28);
-  drawImageIcon(ctx, screenX + screenW - 82, composerY + 15, 28);
-  drawStickerIcon(ctx, screenX + screenW - 45, composerY + 15, 28);
+  drawVoiceIcon(ctx, screenX + screenW - 118, composerY + 20, 26);
+  drawImageIcon(ctx, screenX + screenW - 82, composerY + 20, 26);
+  drawStickerIcon(ctx, screenX + screenW - 46, composerY + 20, 26);
 
   ctx.restore();
   return canvas;
@@ -1926,6 +1998,10 @@ function bindEvents() {
   });
   els.scene.addEventListener("change", generatePreview);
   els.style.addEventListener("change", renderAll);
+  els.script.addEventListener("input", (event) => {
+    const editor = event.target.closest("#scriptEditor");
+    if (editor) updateMessageFromEditor(editor);
+  });
   els.rounds.addEventListener("input", () => {
     renderCount();
     generatePreview();

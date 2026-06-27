@@ -1,6 +1,6 @@
-# conversion.ai
+# conversation.ai
 
-`conversion.ai` turns a short topic into a polished, localized chat conversation. The site includes a public marketing page, an Instagram/WeChat-style Studio, PNG export, and a protected OpenAI generation endpoint.
+`conversation.ai` turns a short topic into a polished, localized chat conversation. The site includes a public marketing page, an Instagram/WeChat-style Studio, PNG export, and a protected OpenAI generation endpoint.
 
 ## Routes
 
