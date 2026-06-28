@@ -4,13 +4,22 @@ const outDir = new URL("../public/", import.meta.url);
 const staticEntries = [
   "index.html",
   "ads.txt",
+  "favicon.svg",
+  "robots.txt",
+  "sitemap.xml",
   "app.js",
   "styles.css",
   "landing.css",
   "studio.css",
   "lib",
   "assets",
-  "studio"
+  "studio",
+  "instagram-dm-generator",
+  "wechat-chat-generator",
+  "chat-screenshot-generator",
+  "ai-conversation-generator",
+  "fake-instagram-dm-generator",
+  "zh"
 ];
 
 await rm(outDir, { recursive: true, force: true });

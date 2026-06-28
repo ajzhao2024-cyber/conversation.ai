@@ -5,12 +5,21 @@ import { promisify } from "node:util";
 import test from "node:test";
 
 const pages = ["index.html", "studio/index.html"];
+const seoPages = [
+  "instagram-dm-generator/index.html",
+  "wechat-chat-generator/index.html",
+  "chat-screenshot-generator/index.html",
+  "ai-conversation-generator/index.html",
+  "fake-instagram-dm-generator/index.html",
+  "zh/wechat-chat-generator/index.html"
+];
+const allPublicPages = [...pages, ...seoPages];
 const adsenseClient = "ca-pub-9870889480354395";
 const adsenseHost = "https://pagead2.googlesyndication.com";
 const run = promisify(execFile);
 
 test("public pages load Vercel Web Analytics and Speed Insights", async () => {
-  for (const page of pages) {
+  for (const page of allPublicPages) {
     const html = await readFile(new URL(`../${page}`, import.meta.url), "utf8");
     assert.match(html, /\/_vercel\/insights\/script\.js/);
     assert.match(html, /\/_vercel\/speed-insights\/script\.js/);
@@ -18,13 +27,22 @@ test("public pages load Vercel Web Analytics and Speed Insights", async () => {
 });
 
 test("public pages load AdSense from the document head", async () => {
-  for (const page of pages) {
+  for (const page of allPublicPages) {
     const html = await readFile(new URL(`../${page}`, import.meta.url), "utf8");
     const head = html.match(/<head>([\s\S]*?)<\/head>/)?.[1] || "";
 
     assert.match(head, /pagead2\.googlesyndication\.com\/pagead\/js\/adsbygoogle\.js/);
     assert.match(head, new RegExp(`client=${adsenseClient}`));
     assert.match(head, /crossorigin="anonymous"/);
+  }
+});
+
+test("public pages declare the browser tab icon", async () => {
+  for (const page of allPublicPages) {
+    const html = await readFile(new URL(`../${page}`, import.meta.url), "utf8");
+    const head = html.match(/<head>([\s\S]*?)<\/head>/)?.[1] || "";
+
+    assert.match(head, /<link rel="icon" href="\/favicon\.svg" type="image\/svg\+xml">/);
   }
 });
 
@@ -52,7 +70,7 @@ test("studio length control is a bounded numeric input", async () => {
   assert.match(html, /id="roundInput"[^>]*type="number"/);
   assert.match(html, /id="roundInput"[^>]*min="1"/);
   assert.match(html, /id="roundInput"[^>]*max="50"/);
-  assert.match(html, /id="roundInput"[^>]*value="20"/);
+  assert.match(html, /id="roundInput"[^>]*value="8"/);
 });
 
 test("studio removes tone controls from the form", async () => {
@@ -61,6 +79,53 @@ test("studio removes tone controls from the form", async () => {
   assert.doesNotMatch(html, /name="tone"/);
   assert.doesNotMatch(html, /data-tone-label/);
   assert.doesNotMatch(html, /data-i18n="toneLabel"/);
+});
+
+test("homepage is positioned as an AI chat screenshot generator", async () => {
+  const html = await readFile(new URL("../index.html", import.meta.url), "utf8");
+
+  assert.match(html, /<title>AI Chat Screenshot Generator/);
+  assert.match(html, /<link rel="canonical" href="https:\/\/conversation\.autos\/">/);
+  assert.match(html, /AI Chat Screenshot Generator/);
+  assert.match(html, /Create a chat screenshot/);
+  assert.match(html, /Try Instagram DM Generator/);
+  assert.match(html, /For mockups, storytelling, education, and content creation/);
+});
+
+test("studio exposes template chips and query-prefill copy", async () => {
+  const html = await readFile(new URL("../studio/index.html", import.meta.url), "utf8");
+
+  assert.match(html, /AI Chat Screenshot Generator/);
+  assert.match(html, /data-template-topic="Make a funny Instagram DM"/);
+  assert.match(html, /data-template-topic="Create a customer support conversation"/);
+  assert.match(html, /data-template-topic="Generate a WeChat sales chat"/);
+  assert.match(html, /For mockups, storytelling, education, and content creation/);
+});
+
+test("SEO pages include canonical metadata, FAQ, demo links, and safety copy", async () => {
+  for (const page of seoPages) {
+    const html = await readFile(new URL(`../${page}`, import.meta.url), "utf8");
+    const route = page.replace(/index\.html$/, "");
+
+    assert.match(html, new RegExp(`<link rel="canonical" href="https://conversation\\.autos/${route}">`));
+    assert.match(html, /property="og:title"/);
+    assert.match(html, /name="twitter:card" content="summary_large_image"/);
+    assert.match(html, /\/studio\/\?topic=/);
+    assert.match(html, /How to use/);
+    assert.match(html, /Use cases/);
+    assert.match(html, /FAQ/);
+    assert.match(html, /For mockups, storytelling, education, and content creation/);
+  }
+});
+
+test("crawl assets expose conversation.autos public routes", async () => {
+  const robots = await readFile(new URL("../robots.txt", import.meta.url), "utf8");
+  const sitemap = await readFile(new URL("../sitemap.xml", import.meta.url), "utf8");
+
+  assert.match(robots, /Sitemap: https:\/\/conversation\.autos\/sitemap\.xml/);
+  for (const route of ["/", "/studio/", "/instagram-dm-generator/", "/wechat-chat-generator/", "/chat-screenshot-generator/", "/ai-conversation-generator/", "/fake-instagram-dm-generator/", "/zh/wechat-chat-generator/"]) {
+    assert.match(sitemap, new RegExp(`<loc>https://conversation\\.autos${route}</loc>`));
+  }
 });
 
 test("static build includes modules imported by the studio client", async () => {
@@ -87,4 +152,17 @@ test("static build includes ads.txt for AdSense verification", async () => {
   const adsTxt = await readFile(new URL("../public/ads.txt", import.meta.url), "utf8");
 
   assert.match(adsTxt, /google\.com, pub-9870889480354395, DIRECT, f08c47fec0942fa0/);
+});
+
+test("static build includes SEO pages and crawl assets", async () => {
+  await run(process.execPath, [new URL("../scripts/build-static.js", import.meta.url).pathname], {
+    cwd: new URL("..", import.meta.url).pathname
+  });
+
+  await access(new URL("../public/favicon.svg", import.meta.url));
+  await access(new URL("../public/robots.txt", import.meta.url));
+  await access(new URL("../public/sitemap.xml", import.meta.url));
+  for (const page of seoPages) {
+    await access(new URL(`../public/${page}`, import.meta.url));
+  }
 });

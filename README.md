@@ -1,11 +1,17 @@
-# conversation.ai
+# conversation.autos
 
-`conversation.ai` turns a short topic into a polished, localized chat conversation. The site includes a public marketing page, an Instagram/WeChat-style Studio, PNG export, and a protected DeepSeek generation endpoint.
+`conversation.autos` turns a short topic into a polished AI chat screenshot. The site includes a public marketing page, SEO landing pages, an Instagram/WeChat-style Studio, PNG export, and a protected DeepSeek generation endpoint.
 
 ## Routes
 
 - `/` marketing homepage
 - `/studio/` multilingual conversation generator
+- `/instagram-dm-generator/` Instagram DM SEO landing page
+- `/wechat-chat-generator/` WeChat chat SEO landing page
+- `/chat-screenshot-generator/` general chat screenshot SEO landing page
+- `/ai-conversation-generator/` AI conversation SEO landing page
+- `/fake-instagram-dm-generator/` responsible fake DM SEO landing page
+- `/zh/wechat-chat-generator/` Chinese WeChat chat SEO landing page
 - `/api/generate` DeepSeek-backed conversation endpoint
 
 ## Local setup

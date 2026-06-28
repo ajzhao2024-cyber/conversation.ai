@@ -9,9 +9,14 @@ test("validateGeneratePayload accepts the bounded studio request", () => {
   assert.deepEqual(validateGeneratePayload(request), { ok: true, value: request });
 });
 
+test("validateGeneratePayload accepts creator and support screenshot scenes", () => {
+  assert.deepEqual(validateGeneratePayload({ ...request, scene: "work" }), { ok: true, value: { ...request, scene: "work" } });
+  assert.deepEqual(validateGeneratePayload({ ...request, scene: "support" }), { ok: true, value: { ...request, scene: "support" } });
+});
+
 test("validateGeneratePayload rejects enum and size violations", () => {
   assert.equal(validateGeneratePayload({ ...request, language: "de" }).ok, false);
-  assert.equal(validateGeneratePayload({ ...request, scene: "work" }).ok, false);
+  assert.equal(validateGeneratePayload({ ...request, scene: "group" }).ok, false);
   assert.equal(validateGeneratePayload({ ...request, rounds: 51 }).ok, false);
   assert.equal(validateGeneratePayload({ ...request, rounds: 0 }).ok, false);
   assert.equal(validateGeneratePayload({ ...request, tone: "casual" }).ok, false);

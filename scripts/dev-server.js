@@ -64,5 +64,5 @@ const server = createServer(async (request, response) => {
 });
 
 server.listen(port, () => {
-  console.log(`conversation.ai local server running at http://localhost:${port}`);
+  console.log(`conversation.autos local server running at http://localhost:${port}`);
 });

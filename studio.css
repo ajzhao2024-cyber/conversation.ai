@@ -35,6 +35,32 @@
 .studio-page textarea { min-height: 104px; }
 .studio-page select, .studio-page input[type="number"] { height: 42px; }
 .studio-page .range-value { color: #aca5b4; }
+.template-panel {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-top: -4px;
+}
+.template-panel button {
+  min-height: 34px;
+  padding: 0 10px;
+  border: 1px solid rgba(255, 255, 255, 0.18);
+  border-radius: 6px;
+  background: #17141f;
+  color: #e8e1ee;
+  font-size: 12px;
+  font-weight: 760;
+}
+.template-panel button:hover,
+.template-panel button:focus-visible {
+  border-color: rgba(50, 191, 255, 0.58);
+  background: #1c1828;
+}
+.safety-note {
+  color: #9f98a8;
+  font-size: 12px;
+  line-height: 1.5;
+}
 .studio-page .segmented { border-color: rgba(255, 255, 255, 0.2); border-radius: 7px; background: #12101a; }
 .studio-page .segmented legend { color: #aaa3b3; }
 .studio-page .segmented span { color: #aea7b8; }

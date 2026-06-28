@@ -126,7 +126,7 @@ test("handler writes structured generation logs", async () => {
   });
   const res = mockRes();
 
-  await handler({ method: "POST", headers: { host: "conversation.ai", "x-vercel-id": "iad1::abc" }, body: payload }, res);
+  await handler({ method: "POST", headers: { host: "conversation.autos", "x-vercel-id": "iad1::abc" }, body: payload }, res);
 
   assert.equal(res.code, 200);
   assert.equal(entries.length, 1);

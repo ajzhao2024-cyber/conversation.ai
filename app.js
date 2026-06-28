@@ -23,13 +23,14 @@ const els = {
   notice: document.querySelector("#apiNotice")
 };
 
-const SCENES = ["daily"];
+const SCENES = ["daily", "work", "support"];
 const TONES = ["natural", "casual", "professional", "dramatic"];
 const DEFAULT_PREVIEW_TONE = "natural";
 const STYLES = ["igLight", "wechat"];
 const MIN_ROUNDS = 1;
 const MAX_ROUNDS = 50;
-const DEFAULT_ROUNDS = 20;
+const DEFAULT_ROUNDS = 8;
+const WATERMARK_TEXT = "conversation.autos";
 const WECHAT_MESSAGE_AVATARS = {
   them: "/assets/wechat-message/avatar-them.png",
   me: "/assets/wechat-message/avatar-me.png"
@@ -55,7 +56,7 @@ const STAGES = [
 const LOCALIZED_CONTENT = {
   en: {
     htmlLang: "en",
-    title: "conversation.ai Studio",
+    title: "AI Chat Screenshot Generator | conversation.autos",
     units: { messages: "messages", me: "Me", online: "Active now", seen: "Seen", today: "Today", ready: "Ready", generated: "Generated", copied: "Copied", exported: "Exported" },
     ui: {
       settingsAria: "Conversation generator settings",
@@ -65,7 +66,7 @@ const LOCALIZED_CONTENT = {
       cameraAria: "Camera",
       voiceAria: "Voice message",
       galleryAria: "Gallery",
-      appTitle: "Conversation Studio",
+      appTitle: "AI Chat Screenshot Generator",
       languageLabel: "Language",
       sceneLabel: "Conversation",
       topicLabel: "Topic",
@@ -242,7 +243,7 @@ const LOCALIZED_CONTENT = {
   },
   es: {
     htmlLang: "es",
-    title: "conversation.ai Studio",
+    title: "AI Chat Screenshot Generator | conversation.autos",
     units: { messages: "mensajes", me: "Yo", online: "Activo ahora", seen: "Visto", today: "Hoy", ready: "Listo", generated: "Generado", copied: "Copiado", exported: "Exportado" },
     ui: {
       settingsAria: "Ajustes del generador de conversaciones",
@@ -252,7 +253,7 @@ const LOCALIZED_CONTENT = {
       cameraAria: "Cámara",
       voiceAria: "Mensaje de voz",
       galleryAria: "Galería",
-      appTitle: "Estudio de conversaciones",
+      appTitle: "Generador de capturas de chat con IA",
       languageLabel: "Idioma",
       sceneLabel: "Conversación",
       topicLabel: "Tema",
@@ -292,7 +293,7 @@ const LOCALIZED_CONTENT = {
   },
   fr: {
     htmlLang: "fr",
-    title: "conversation.ai Studio",
+    title: "AI Chat Screenshot Generator | conversation.autos",
     units: { messages: "messages", me: "Moi", online: "Actif maintenant", seen: "Vu", today: "Aujourd'hui", ready: "Prêt", generated: "Généré", copied: "Copié", exported: "Exporté" },
     ui: {
       settingsAria: "Paramètres du générateur de conversation",
@@ -302,7 +303,7 @@ const LOCALIZED_CONTENT = {
       cameraAria: "Caméra",
       voiceAria: "Message vocal",
       galleryAria: "Galerie",
-      appTitle: "Studio de conversation",
+      appTitle: "Générateur IA de captures de chat",
       languageLabel: "Langue",
       sceneLabel: "Conversation",
       topicLabel: "Sujet",
@@ -342,7 +343,7 @@ const LOCALIZED_CONTENT = {
   },
   pt: {
     htmlLang: "pt",
-    title: "conversation.ai Studio",
+    title: "AI Chat Screenshot Generator | conversation.autos",
     units: { messages: "mensagens", me: "Eu", online: "Ativo agora", seen: "Visto", today: "Hoje", ready: "Pronto", generated: "Gerado", copied: "Copiado", exported: "Exportado" },
     ui: {
       settingsAria: "Configurações do gerador de conversa",
@@ -352,7 +353,7 @@ const LOCALIZED_CONTENT = {
       cameraAria: "Câmera",
       voiceAria: "Mensagem de voz",
       galleryAria: "Galeria",
-      appTitle: "Estúdio de conversas",
+      appTitle: "Gerador de prints de chat com IA",
       languageLabel: "Idioma",
       sceneLabel: "Conversa",
       topicLabel: "Tema",
@@ -392,7 +393,7 @@ const LOCALIZED_CONTENT = {
   },
   ja: {
     htmlLang: "ja",
-    title: "conversation.ai Studio",
+    title: "AI Chat Screenshot Generator | conversation.autos",
     units: { messages: "件", me: "自分", online: "オンライン中", seen: "既読", today: "今日", ready: "準備完了", generated: "生成済み", copied: "コピー済み", exported: "書き出し済み" },
     ui: {
       settingsAria: "会話生成設定",
@@ -402,7 +403,7 @@ const LOCALIZED_CONTENT = {
       cameraAria: "カメラ",
       voiceAria: "ボイスメッセージ",
       galleryAria: "ギャラリー",
-      appTitle: "会話スタジオ",
+      appTitle: "AIチャットスクリーンショット生成",
       languageLabel: "言語",
       sceneLabel: "会話",
       topicLabel: "テーマ",
@@ -442,7 +443,7 @@ const LOCALIZED_CONTENT = {
   },
   zh: {
     htmlLang: "zh-CN",
-    title: "conversation.ai Studio",
+    title: "AI Chat Screenshot Generator | conversation.autos",
     units: { messages: "条", me: "我", online: "当前在线", seen: "已读", today: "今天", ready: "就绪", generated: "已生成", copied: "已复制", exported: "已导出" },
     ui: {
       settingsAria: "对话生成设置",
@@ -452,7 +453,7 @@ const LOCALIZED_CONTENT = {
       cameraAria: "相机",
       voiceAria: "语音消息",
       galleryAria: "相册",
-      appTitle: "对话工作室",
+      appTitle: "AI 聊天截图生成器",
       languageLabel: "语言",
       sceneLabel: "对话类型",
       topicLabel: "主题",
@@ -793,6 +794,7 @@ let lastLanguage = "en";
 let avatarOverrides = loadAvatarOverrides();
 let avatarInput = null;
 let pendingAvatarSpeakerId = "";
+const templateButtons = Array.from(document.querySelectorAll("[data-template-topic]"));
 
 function makeRomanceTemplates({ social, support }) {
   const mapRows = (rows) => Object.fromEntries(STAGES.map((stage, index) => [
@@ -1196,6 +1198,41 @@ function selectedRoundCount({ commit = false } = {}) {
   return rounds;
 }
 
+function applyInitialParams() {
+  const params = new URLSearchParams(window.location.search);
+  const language = params.get("language");
+  const scene = params.get("scene");
+  const style = params.get("style");
+  const rounds = params.get("rounds");
+  const topic = params.get("topic");
+
+  if (language && Object.hasOwn(LOCALIZED_CONTENT, language)) els.language.value = language;
+  applyI18n({ preserveTopic: false });
+  if (scene && SCENES.includes(scene)) els.scene.value = scene;
+  if (style && STYLES.includes(style)) els.style.value = style;
+  if (rounds) els.rounds.value = String(normalizeRoundCount(rounds));
+  if (topic) els.topic.value = topic.replace(/\s+/g, " ").trim().slice(0, Number(els.topic.maxLength) || 120);
+}
+
+function applyTemplate(button) {
+  const topic = button.dataset.templateTopic || "";
+  const scene = button.dataset.templateScene || "";
+  const style = button.dataset.templateStyle || "";
+  const language = button.dataset.templateLanguage || "";
+  const rounds = button.dataset.templateRounds || "";
+
+  if (language && Object.hasOwn(LOCALIZED_CONTENT, language) && els.language.value !== language) {
+    els.language.value = language;
+    applyI18n({ preserveTopic: true });
+  }
+  if (topic) els.topic.value = topic;
+  if (scene && SCENES.includes(scene)) els.scene.value = scene;
+  if (style && STYLES.includes(style)) els.style.value = style;
+  if (rounds) els.rounds.value = String(normalizeRoundCount(rounds));
+  selectedRoundCount({ commit: true });
+  generatePreview();
+}
+
 function generatePreview() {
   const data = locale();
   const topic = cleanTopic(els.topic.value);
@@ -1592,6 +1629,15 @@ function drawText(ctx, lines, x, y, lineHeight) {
   });
 }
 
+function drawWatermark(ctx, width, y, color = "rgba(17, 19, 24, 0.34)") {
+  ctx.save();
+  ctx.fillStyle = color;
+  ctx.font = "700 11px -apple-system, BlinkMacSystemFont, Segoe UI, sans-serif";
+  ctx.textAlign = "center";
+  ctx.fillText(WATERMARK_TEXT, width / 2, y);
+  ctx.restore();
+}
+
 function beginIcon(ctx, color = "#090909", width = 2.45) {
   ctx.strokeStyle = color;
   ctx.fillStyle = color;
@@ -1961,6 +2007,7 @@ async function renderWeChatCanvas() {
   ctx.fill();
   ctx.drawImage(stickerAsset, 297.67, composerY + 14.67, 26.67, 26.67);
   ctx.drawImage(addAsset, 337.67, composerY + 14.67, 26.67, 26.67);
+  drawWatermark(ctx, width, composerY + 67, "rgba(25, 25, 25, 0.28)");
   ctx.fillStyle = "#191919";
   roundRect(ctx, 121, composerY + 76, 133, 6, 3);
   ctx.fill();
@@ -2182,6 +2229,7 @@ async function renderCanvas() {
   drawVoiceIcon(ctx, screenX + screenW - 118, composerY + 20, 26);
   drawImageIcon(ctx, screenX + screenW - 82, composerY + 20, 26);
   drawStickerIcon(ctx, screenX + screenW - 46, composerY + 20, 26);
+  drawWatermark(ctx, width, height - 14, "rgba(17, 19, 24, 0.34)");
 
   ctx.restore();
   return canvas;
@@ -2232,6 +2280,9 @@ function bindEvents() {
   });
   els.scene.addEventListener("change", generatePreview);
   els.style.addEventListener("change", renderAll);
+  templateButtons.forEach((button) => {
+    button.addEventListener("click", () => applyTemplate(button));
+  });
   els.frame.addEventListener("click", (event) => {
     const avatar = event.target.closest("[data-avatar-speaker-id]");
     if (avatar) openAvatarPicker(avatar.dataset.avatarSpeakerId);
@@ -2251,6 +2302,6 @@ function bindEvents() {
   });
 }
 
-applyI18n({ preserveTopic: false });
+applyInitialParams();
 bindEvents();
 generatePreview();

@@ -3,29 +3,37 @@
   <head>
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
+    <meta name="description" content="Generate realistic Instagram DM and WeChat chat screenshots from any topic. Edit messages, preview the chat, and export as PNG.">
     <meta name="theme-color" content="#090610">
-    <title>conversation.ai Studio</title>
+    <link rel="icon" href="/favicon.svg" type="image/svg+xml">
+    <link rel="canonical" href="https://conversation.autos/studio/">
+    <meta property="og:title" content="AI Chat Screenshot Generator Studio">
+    <meta property="og:description" content="Create realistic Instagram DM and WeChat conversation screenshots from a short idea.">
+    <meta property="og:url" content="https://conversation.autos/studio/">
+    <meta property="og:image" content="https://conversation.autos/assets/hero/conversation-chat-hero.png">
+    <meta name="twitter:card" content="summary_large_image">
+    <title>AI Chat Screenshot Generator Studio | conversation.autos</title>
     <script async src="https://pagead2.googlesyndication.com/pagead/js/adsbygoogle.js?client=ca-pub-9870889480354395" crossorigin="anonymous"></script>
     <link rel="stylesheet" href="/styles.css">
     <link rel="stylesheet" href="/studio.css">
   </head>
   <body class="studio-page">
     <header class="studio-nav">
-      <a class="studio-wordmark" href="/">conversation<span>.ai</span></a>
-      <p>AI conversation studio</p>
+      <a class="studio-wordmark" href="/">conversation<span>.autos</span></a>
+      <p>AI chat screenshot generator</p>
       <a class="studio-back" href="/">Back to home <span aria-hidden="true">&#8592;</span></a>
     </header>
     <main class="app-shell studio-shell">
       <section class="control-panel" aria-label="Conversation generator settings" data-i18n-aria="settingsAria">
         <div class="brand-row">
           <div>
-            <p class="eyebrow">CONVERSATION ENGINE</p>
-            <h1 data-i18n="appTitle">Conversation Studio</h1>
+            <p class="eyebrow">SCREENSHOT ENGINE</p>
+            <h1 data-i18n="appTitle">AI Chat Screenshot Generator</h1>
           </div>
           <span class="status-pill" id="statusPill" aria-live="polite">Ready</span>
         </div>
 
-        <p class="studio-intro">Give the model a topic, then shape the thread for the channel and audience in front of you.</p>
+        <p class="studio-intro">Give the model a topic, then shape it into an Instagram DM or WeChat screenshot you can edit, preview, and export.</p>
         <p class="api-notice" id="apiNotice" aria-live="polite" hidden></p>
 
         <div class="field-grid">
@@ -52,11 +60,22 @@
           <textarea id="topicInput" rows="4" maxlength="120" placeholder="A friend wants to reschedule weekend brunch"></textarea>
         </label>
 
+        <div class="template-panel" aria-label="Quick templates">
+          <button type="button" data-template-topic="Make a funny Instagram DM" data-template-scene="daily" data-template-style="igLight" data-template-rounds="8">Funny Instagram DM</button>
+          <button type="button" data-template-topic="Create a customer support conversation" data-template-scene="support" data-template-style="wechat" data-template-rounds="8">Customer support</button>
+          <button type="button" data-template-topic="Generate a WeChat sales chat" data-template-scene="support" data-template-style="wechat" data-template-language="zh" data-template-rounds="8">WeChat sales chat</button>
+          <button type="button" data-template-topic="Make a breakup chat meme" data-template-scene="daily" data-template-style="igLight" data-template-rounds="6">Breakup chat meme</button>
+          <button type="button" data-template-topic="Create a product launch teaser" data-template-scene="work" data-template-style="igLight" data-template-rounds="8">Product launch teaser</button>
+          <button type="button" data-template-topic="Make a language-learning dialogue" data-template-scene="daily" data-template-style="wechat" data-template-rounds="8">Language-learning dialogue</button>
+          <button type="button" data-template-topic="Turn my idea into a viral chat" data-template-scene="work" data-template-style="igLight" data-template-rounds="8">Viral chat</button>
+          <button type="button" data-template-topic="Create a fake DM for a video script" data-template-scene="work" data-template-style="igLight" data-template-rounds="8">Video script DM</button>
+        </div>
+
         <div class="field-grid length-style-grid">
           <label class="field">
             <span data-i18n="roundLabel">Length</span>
-            <input id="roundInput" type="number" min="1" max="50" step="1" value="20" inputmode="numeric">
-            <strong class="range-value" id="roundValue">20 messages</strong>
+            <input id="roundInput" type="number" min="1" max="50" step="1" value="8" inputmode="numeric">
+            <strong class="range-value" id="roundValue">8 messages</strong>
           </label>
 
           <label class="field">
@@ -78,6 +97,8 @@
           </div>
           <ol id="scriptList"></ol>
         </div>
+
+        <p class="safety-note">For mockups, storytelling, education, and content creation. Do not use generated conversations to impersonate real people or mislead others.</p>
       </section>
 
       <section class="preview-panel" aria-label="DM preview" data-i18n-aria="previewAria">
