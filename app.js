@@ -23,9 +23,13 @@ const els = {
   notice: document.querySelector("#apiNotice")
 };
 
-const SCENES = ["daily", "group", "work", "support"];
+const SCENES = ["daily"];
 const TONES = ["natural", "casual", "professional", "dramatic"];
+const DEFAULT_PREVIEW_TONE = "natural";
 const STYLES = ["igLight", "wechat"];
+const MIN_ROUNDS = 1;
+const MAX_ROUNDS = 50;
+const DEFAULT_ROUNDS = 20;
 const WECHAT_MESSAGE_AVATARS = {
   them: "/assets/wechat-message/avatar-them.png",
   me: "/assets/wechat-message/avatar-me.png"
@@ -819,10 +823,6 @@ function pick(rng, items) {
   return items[Math.floor(rng() * items.length)];
 }
 
-function selectedTone() {
-  return document.querySelector('input[name="tone"]:checked').value;
-}
-
 function populateSelect(select, values, labels) {
   const selected = select.value;
   select.innerHTML = "";
@@ -846,10 +846,6 @@ function applyI18n({ preserveTopic = true } = {}) {
   document.querySelectorAll("[data-i18n-aria]").forEach((node) => {
     node.setAttribute("aria-label", data.ui[node.dataset.i18nAria] || node.getAttribute("aria-label") || "");
   });
-  document.querySelectorAll("[data-tone-label]").forEach((node) => {
-    node.textContent = data.tones[node.dataset.toneLabel];
-  });
-
   populateSelect(els.scene, SCENES, data.scenes);
   populateSelect(els.style, STYLES, data.styles);
   els.topic.placeholder = data.samples[0];
@@ -1040,15 +1036,32 @@ function makeChatTitle(scene, topic, participants) {
   return participants[1]?.name || shortTitle(topic);
 }
 
+function normalizeRoundCount(value, fallback = DEFAULT_ROUNDS) {
+  const parsed = Number.parseInt(String(value), 10);
+  const count = Number.isFinite(parsed) ? parsed : fallback;
+  return Math.min(MAX_ROUNDS, Math.max(MIN_ROUNDS, count));
+}
+
+function selectedRoundCount({ commit = false } = {}) {
+  const raw = String(els.rounds.value || "").trim();
+  const rounds = normalizeRoundCount(raw || DEFAULT_ROUNDS);
+  const parsed = Number.parseInt(raw, 10);
+  const isOutOfRange = raw && Number.isFinite(parsed) && parsed !== rounds;
+  if ((commit || isOutOfRange) && els.rounds.value !== String(rounds)) {
+    els.rounds.value = String(rounds);
+  }
+  return rounds;
+}
+
 function generatePreview() {
   const data = locale();
   const topic = cleanTopic(els.topic.value);
   if (!els.topic.value.trim()) els.topic.value = topic;
 
   const scene = els.scene.value;
-  const tone = selectedTone();
+  const tone = DEFAULT_PREVIEW_TONE;
   const styleMode = els.style.value;
-  const rounds = Number(els.rounds.value);
+  const rounds = selectedRoundCount();
   const seed = hashString(`${data.htmlLang}|${topic}|${scene}|${tone}|${rounds}`);
   const rng = makeRng(seed);
   const domain = findDomain(topic, scene);
@@ -1062,7 +1075,6 @@ function generatePreview() {
     language: els.language.value,
     topic,
     scene,
-    tone,
     styleMode,
     participants,
     title: makeChatTitle(scene, topic, participants),
@@ -1110,8 +1122,8 @@ function setGenerating(isGenerating) {
 function apiErrorMessage(status, code) {
   if (status === 400 || code === "validation") return "Check the topic and conversation settings, then try again.";
   if (status === 429 || code === "rate_limit") return "You have reached this minute's generation limit. Please wait a moment and retry.";
+  if (status === 503 || code === "configuration") return "Generation is temporarily unavailable on this deployment.";
   if (status === 502 || code === "upstream" || code === "refusal") return "The conversation service could not finish that request. Please try again.";
-  if (status === 503) return "Generation is temporarily unavailable on this deployment.";
   return "We could not reach the conversation service. Please retry.";
 }
 
@@ -1122,9 +1134,8 @@ async function generateConversation() {
   const payload = {
     topic,
     scene: els.scene.value,
-    tone: selectedTone(),
     language: els.language.value,
-    rounds: Number(els.rounds.value)
+    rounds: selectedRoundCount({ commit: true })
   };
 
   showApiNotice("");
@@ -1302,7 +1313,7 @@ function updateMessageFromEditor(editor) {
 
 function renderCount() {
   const data = locale();
-  els.roundValue.textContent = formatMessageCount(Number(els.rounds.value), data);
+  els.roundValue.textContent = formatMessageCount(selectedRoundCount(), data);
   els.count.textContent = formatMessageCount(currentMessages.length, data);
 }
 
@@ -2006,8 +2017,10 @@ function bindEvents() {
     renderCount();
     generatePreview();
   });
-  document.querySelectorAll('input[name="tone"]').forEach((input) => {
-    input.addEventListener("change", generatePreview);
+  els.rounds.addEventListener("change", () => {
+    selectedRoundCount({ commit: true });
+    renderCount();
+    generatePreview();
   });
 }
 

@@ -136,6 +136,10 @@ h1 {
   gap: 14px;
 }
 
+.length-style-grid {
+  align-items: start;
+}
+
 .field {
   display: grid;
   gap: 8px;
@@ -145,7 +149,8 @@ h1 {
 }
 
 textarea,
-select {
+select,
+input[type="number"] {
   width: 100%;
   border-radius: 8px;
   background: var(--surface);
@@ -163,14 +168,20 @@ textarea::placeholder {
   color: var(--muted-2);
 }
 
-select {
+select,
+input[type="number"] {
   height: 44px;
   padding: 0 12px;
 }
 
-input[type="range"] {
-  width: 100%;
-  accent-color: var(--accent-2);
+input[type="number"] {
+  font: inherit;
+  font-weight: 760;
+}
+
+input[type="number"]::-webkit-inner-spin-button,
+input[type="number"]::-webkit-outer-spin-button {
+  opacity: 1;
 }
 
 .range-value {

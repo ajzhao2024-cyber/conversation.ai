@@ -51,11 +51,11 @@
           <textarea id="topicInput" rows="4" maxlength="120" placeholder="A friend wants to reschedule weekend brunch"></textarea>
         </label>
 
-        <div class="field-grid">
+        <div class="field-grid length-style-grid">
           <label class="field">
             <span data-i18n="roundLabel">Length</span>
-            <input id="roundInput" type="range" min="3" max="8" value="4">
-            <strong class="range-value" id="roundValue">4 messages</strong>
+            <input id="roundInput" type="number" min="1" max="50" step="1" value="20" inputmode="numeric">
+            <strong class="range-value" id="roundValue">20 messages</strong>
           </label>
 
           <label class="field">
@@ -63,14 +63,6 @@
             <select id="styleSelect"></select>
           </label>
         </div>
-
-        <fieldset class="segmented" aria-label="Tone" data-i18n-aria="toneAria">
-          <legend data-i18n="toneLabel">Tone</legend>
-          <label><input type="radio" name="tone" value="natural" checked><span data-tone-label="natural">Natural</span></label>
-          <label><input type="radio" name="tone" value="casual"><span data-tone-label="casual">Casual</span></label>
-          <label><input type="radio" name="tone" value="professional"><span data-tone-label="professional">Polished</span></label>
-          <label><input type="radio" name="tone" value="dramatic"><span data-tone-label="dramatic">Dramatic</span></label>
-        </fieldset>
 
         <div class="button-row">
           <button class="primary-action" id="generateBtn" type="button" data-i18n="generateButton">Generate</button>

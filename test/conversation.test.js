@@ -3,7 +3,7 @@ import test from "node:test";
 import { buildConversationInstructions, normalizeConversation, validateGeneratePayload } from "../lib/conversation.js";
 import { mapConversationForPreview, updatePreviewMessage, updatePreviewMessagesFromScript } from "../lib/studio-data.js";
 
-const request = { topic: "A founder announces a beta launch", scene: "work", tone: "natural", language: "en", rounds: 4 };
+const request = { topic: "A founder announces a beta launch", scene: "daily", language: "en", rounds: 4 };
 
 test("validateGeneratePayload accepts the bounded studio request", () => {
   assert.deepEqual(validateGeneratePayload(request), { ok: true, value: request });
@@ -11,8 +11,16 @@ test("validateGeneratePayload accepts the bounded studio request", () => {
 
 test("validateGeneratePayload rejects enum and size violations", () => {
   assert.equal(validateGeneratePayload({ ...request, language: "de" }).ok, false);
-  assert.equal(validateGeneratePayload({ ...request, rounds: 9 }).ok, false);
+  assert.equal(validateGeneratePayload({ ...request, scene: "work" }).ok, false);
+  assert.equal(validateGeneratePayload({ ...request, rounds: 51 }).ok, false);
+  assert.equal(validateGeneratePayload({ ...request, rounds: 0 }).ok, false);
+  assert.equal(validateGeneratePayload({ ...request, tone: "casual" }).ok, false);
   assert.equal(validateGeneratePayload({ ...request, extra: true }).ok, false);
+});
+
+test("validateGeneratePayload accepts long user-entered conversation length", () => {
+  const result = validateGeneratePayload({ ...request, rounds: 50 });
+  assert.deepEqual(result, { ok: true, value: { ...request, rounds: 50 } });
 });
 
 test("normalizeConversation hydrates renderer-safe participants", () => {
@@ -37,10 +45,35 @@ test("normalizeConversation rejects a wrong message count", () => {
   assert.throws(() => normalizeConversation({ title: "x", participants: [{ id: "me", name: "M", side: "me", handle: "m" }, { id: "a", name: "A", side: "them", handle: "a" }], messages: [] }, request));
 });
 
+test("normalizeConversation rejects non-1:1 participant counts", () => {
+  assert.throws(() => normalizeConversation({
+    title: "x",
+    participants: [
+      { id: "me", name: "M", side: "me", handle: "m" },
+      { id: "a", name: "A", side: "them", handle: "a" },
+      { id: "b", name: "B", side: "them", handle: "b" }
+    ],
+    messages: [
+      { speakerId: "me", text: "One" },
+      { speakerId: "a", text: "Two" },
+      { speakerId: "me", text: "Three" },
+      { speakerId: "a", text: "Four" }
+    ]
+  }, request));
+});
+
 test("instructions lock the selected language and count", () => {
   const text = buildConversationInstructions(request);
   assert.match(text, /English/);
   assert.match(text, /exactly 4 messages/);
+  assert.match(text, /exactly 2 participants/);
+  assert.doesNotMatch(text, /tone is/i);
+});
+
+test("instructions define participant side enum values", () => {
+  const text = buildConversationInstructions(request);
+  assert.match(text, /side 'me'/);
+  assert.match(text, /side 'them'/);
 });
 
 test("client mapping keeps ordered speakers and renderer metadata", () => {

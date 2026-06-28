@@ -31,10 +31,9 @@
 .api-notice[data-kind="error"] { border-color: rgba(255, 115, 116, 0.65); background: #281318; color: #ffd8d8; }
 .api-notice[data-kind="info"] { border-color: rgba(50, 191, 255, 0.55); background: #101e29; color: #d6f3ff; }
 .studio-page .field { color: #e4dfe9; font-size: 13px; }
-.studio-page textarea, .studio-page select { border-color: rgba(255, 255, 255, 0.2); border-radius: 6px; background: #17141f; color: #fff; }
+.studio-page textarea, .studio-page select, .studio-page input[type="number"] { border-color: rgba(255, 255, 255, 0.2); border-radius: 6px; background: #17141f; color: #fff; }
 .studio-page textarea { min-height: 104px; }
-.studio-page select { height: 42px; }
-.studio-page input[type="range"] { accent-color: #fb3fd5; }
+.studio-page select, .studio-page input[type="number"] { height: 42px; }
 .studio-page .range-value { color: #aca5b4; }
 .studio-page .segmented { border-color: rgba(255, 255, 255, 0.2); border-radius: 7px; background: #12101a; }
 .studio-page .segmented legend { color: #aaa3b3; }

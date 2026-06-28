@@ -23,6 +23,23 @@ test("content security policy allows Vercel analytics endpoints", async () => {
   assert.match(policy, /connect-src[^;]*'self'/);
 });
 
+test("studio length control is a bounded numeric input", async () => {
+  const html = await readFile(new URL("../studio/index.html", import.meta.url), "utf8");
+
+  assert.match(html, /id="roundInput"[^>]*type="number"/);
+  assert.match(html, /id="roundInput"[^>]*min="1"/);
+  assert.match(html, /id="roundInput"[^>]*max="50"/);
+  assert.match(html, /id="roundInput"[^>]*value="20"/);
+});
+
+test("studio removes tone controls from the form", async () => {
+  const html = await readFile(new URL("../studio/index.html", import.meta.url), "utf8");
+
+  assert.doesNotMatch(html, /name="tone"/);
+  assert.doesNotMatch(html, /data-tone-label/);
+  assert.doesNotMatch(html, /data-i18n="toneLabel"/);
+});
+
 test("static build includes modules imported by the studio client", async () => {
   await run(process.execPath, [new URL("../scripts/build-static.js", import.meta.url).pathname], {
     cwd: new URL("..", import.meta.url).pathname

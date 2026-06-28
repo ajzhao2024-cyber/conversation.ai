@@ -1,5 +1,4 @@
 import {
-  CONVERSATION_SCHEMA,
   MAX_BODY_BYTES,
   buildConversationInput,
   buildConversationInstructions,
@@ -8,7 +7,10 @@ import {
 } from "../lib/conversation.js";
 import { createRateLimiter, hasUpstashCredentials } from "../lib/limiter.js";
 
-const DEFAULT_MODEL = "gpt-5.4-mini";
+const DEFAULT_DEEPSEEK_BASE_URL = "https://api.deepseek.com";
+const DEFAULT_MODEL = "deepseek-v4-flash";
+const MIN_GENERATION_TOKENS = 1600;
+const TOKENS_PER_MESSAGE = 120;
 
 export const config = {
   api: { bodyParser: { sizeLimit: "2kb" } }
@@ -58,49 +60,46 @@ function logGeneration(logger, req, env, payload) {
     status: "ok",
     environment: env.VERCEL_ENV || "development",
     scene: payload.scene,
-    tone: payload.tone,
     language: payload.language,
     rounds: payload.rounds,
     vercelId: req.headers?.["x-vercel-id"] || null
   });
 }
 
-function extractOutputText(response) {
-  if (typeof response.output_text === "string" && response.output_text.trim()) return response.output_text;
-  const content = response.output?.flatMap((item) => item.content || []) || [];
-  const refusal = content.find((item) => item.type === "refusal");
-  if (refusal) {
+function extractDeepSeekContent(response) {
+  const choice = Array.isArray(response?.choices) ? response.choices[0] : undefined;
+  if (choice?.finish_reason === "content_filter") {
     const error = new Error("The model declined this request.");
     error.code = "refusal";
     throw error;
   }
-  const output = content.find((item) => item.type === "output_text");
-  if (typeof output?.text === "string") return output.text;
+  const content = choice?.message?.content;
+  if (typeof content === "string" && content.trim()) return content;
   throw new Error("The model returned no structured text.");
 }
 
 export async function requestConversation(payload, { env = process.env, fetchImpl = fetch } = {}) {
-  const apiKey = env.OPENAI_API_KEY;
+  const apiKey = env.DEEPSEEK_API_KEY;
   if (!apiKey) {
     const error = new Error("Conversation generation is not configured.");
     error.code = "configuration";
     throw error;
   }
-  const response = await fetchImpl("https://api.openai.com/v1/responses", {
+  const baseUrl = (env.DEEPSEEK_BASE_URL || DEFAULT_DEEPSEEK_BASE_URL).replace(/\/+$/, "");
+  const response = await fetchImpl(`${baseUrl}/chat/completions`, {
     method: "POST",
     headers: { Authorization: `Bearer ${apiKey}`, "Content-Type": "application/json" },
     body: JSON.stringify({
-      model: env.OPENAI_MODEL || DEFAULT_MODEL,
-      instructions: buildConversationInstructions(payload),
-      input: buildConversationInput(payload),
-      text: {
-        format: {
-          type: "json_schema",
-          name: "conversation",
-          strict: true,
-          schema: CONVERSATION_SCHEMA
-        }
-      }
+      model: env.DEEPSEEK_MODEL || DEFAULT_MODEL,
+      messages: [
+        { role: "system", content: buildConversationInstructions(payload) },
+        { role: "user", content: buildConversationInput(payload) }
+      ],
+      response_format: { type: "json_object" },
+      thinking: { type: "disabled" },
+      temperature: 0.7,
+      max_tokens: Math.max(MIN_GENERATION_TOKENS, payload.rounds * TOKENS_PER_MESSAGE),
+      stream: false
     })
   });
   if (!response.ok) {
@@ -109,7 +108,7 @@ export async function requestConversation(payload, { env = process.env, fetchImp
     throw error;
   }
   const data = await response.json();
-  const raw = extractOutputText(data);
+  const raw = extractDeepSeekContent(data);
   return normalizeConversation(JSON.parse(raw), payload);
 }
 
@@ -144,10 +143,11 @@ export function createHandler({ env = process.env, fetchImpl = fetch, limiter = 
       logGeneration(logger, req, env, validated.value);
       return json(res, 200, conversation, { "Cache-Control": "no-store" });
     } catch (error) {
+      const status = error?.code === "configuration" ? 503 : 502;
       const message = error?.code === "configuration"
         ? "Generation is not configured on this deployment."
         : "We could not generate that conversation. Please try again.";
-      return json(res, 502, { error: message, code: error?.code || "upstream" });
+      return json(res, status, { error: message, code: error?.code || "upstream" });
     }
   };
 }
