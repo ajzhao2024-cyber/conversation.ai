@@ -7,6 +7,7 @@ const staticEntries = [
   "styles.css",
   "landing.css",
   "studio.css",
+  "lib",
   "assets",
   "studio"
 ];
