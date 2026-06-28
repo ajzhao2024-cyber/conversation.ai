@@ -11,6 +11,7 @@ const DEFAULT_DEEPSEEK_BASE_URL = "https://api.deepseek.com";
 const DEFAULT_MODEL = "deepseek-v4-flash";
 const MIN_GENERATION_TOKENS = 1600;
 const TOKENS_PER_MESSAGE = 120;
+const MAX_GENERATION_ATTEMPTS = 3;
 
 export const config = {
   api: { bodyParser: { sizeLimit: "2kb" } }
@@ -86,30 +87,41 @@ export async function requestConversation(payload, { env = process.env, fetchImp
     throw error;
   }
   const baseUrl = (env.DEEPSEEK_BASE_URL || DEFAULT_DEEPSEEK_BASE_URL).replace(/\/+$/, "");
-  const response = await fetchImpl(`${baseUrl}/chat/completions`, {
-    method: "POST",
-    headers: { Authorization: `Bearer ${apiKey}`, "Content-Type": "application/json" },
-    body: JSON.stringify({
-      model: env.DEEPSEEK_MODEL || DEFAULT_MODEL,
-      messages: [
-        { role: "system", content: buildConversationInstructions(payload) },
-        { role: "user", content: buildConversationInput(payload) }
-      ],
-      response_format: { type: "json_object" },
-      thinking: { type: "disabled" },
-      temperature: 0.7,
-      max_tokens: Math.max(MIN_GENERATION_TOKENS, payload.rounds * TOKENS_PER_MESSAGE),
-      stream: false
-    })
-  });
-  if (!response.ok) {
-    const error = new Error("The generation service could not complete the request.");
-    error.code = "upstream";
-    throw error;
+  const requestBody = {
+    model: env.DEEPSEEK_MODEL || DEFAULT_MODEL,
+    messages: [
+      { role: "system", content: buildConversationInstructions(payload) },
+      { role: "user", content: buildConversationInput(payload) }
+    ],
+    response_format: { type: "json_object" },
+    thinking: { type: "disabled" },
+    temperature: 0.7,
+    max_tokens: Math.max(MIN_GENERATION_TOKENS, payload.rounds * TOKENS_PER_MESSAGE),
+    stream: false
+  };
+
+  for (let attempt = 1; attempt <= MAX_GENERATION_ATTEMPTS; attempt += 1) {
+    const response = await fetchImpl(`${baseUrl}/chat/completions`, {
+      method: "POST",
+      headers: { Authorization: `Bearer ${apiKey}`, "Content-Type": "application/json" },
+      body: JSON.stringify(requestBody)
+    });
+    if (!response.ok) {
+      const error = new Error("The generation service could not complete the request.");
+      error.code = "upstream";
+      throw error;
+    }
+
+    try {
+      const data = await response.json();
+      const raw = extractDeepSeekContent(data);
+      return normalizeConversation(JSON.parse(raw), payload);
+    } catch (error) {
+      if (error?.code || attempt === MAX_GENERATION_ATTEMPTS) throw error;
+    }
   }
-  const data = await response.json();
-  const raw = extractDeepSeekContent(data);
-  return normalizeConversation(JSON.parse(raw), payload);
+
+  throw new Error("The model response was invalid.");
 }
 
 export function createHandler({ env = process.env, fetchImpl = fetch, limiter = createRateLimiter({ env, fetchImpl }), logger = console } = {}) {

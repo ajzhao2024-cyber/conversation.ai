@@ -54,6 +54,32 @@ test("requestConversation treats empty DeepSeek content as an upstream failure",
   await assert.rejects(() => requestConversation(payload, { env: { DEEPSEEK_API_KEY: "test" }, fetchImpl }), { message: /no structured text/ });
 });
 
+test("requestConversation retries model output with the wrong message count", async () => {
+  let calls = 0;
+  const longPayload = { ...payload, rounds: 30 };
+  const participants = [
+    { id: "me", name: "Mina", side: "me", handle: "mina" },
+    { id: "sam", name: "Sam", side: "them", handle: "sam" }
+  ];
+  const makeMessages = (count) => Array.from({ length: count }, (_, index) => ({
+    speakerId: index % 2 === 0 ? "me" : "sam",
+    text: `Message ${index + 1}`
+  }));
+  const fetchImpl = async () => {
+    calls += 1;
+    const messages = makeMessages(calls === 1 ? 29 : 30);
+    return {
+      ok: true,
+      json: async () => ({ choices: [{ message: { content: JSON.stringify({ title: "Long chat", participants, messages }) }, finish_reason: "stop" }] })
+    };
+  };
+
+  const result = await requestConversation(longPayload, { env: { DEEPSEEK_API_KEY: "test" }, fetchImpl });
+
+  assert.equal(result.messages.length, 30);
+  assert.equal(calls, 2);
+});
+
 test("requestConversation scales token budget for long conversations", async () => {
   let requestBody;
   const longPayload = { ...payload, rounds: 50 };
