@@ -1,4 +1,4 @@
-import { formatPreviewScript, mapConversationForPreview, updatePreviewMessagesFromScript } from "./lib/studio-data.js";
+import { applyAvatarOverridesToPreview, formatPreviewScript, mapConversationForPreview, updatePreviewMessagesFromScript } from "./lib/studio-data.js";
 
 const els = {
   language: document.querySelector("#languageSelect"),
@@ -34,6 +34,10 @@ const WECHAT_MESSAGE_AVATARS = {
   them: "/assets/wechat-message/avatar-them.png",
   me: "/assets/wechat-message/avatar-me.png"
 };
+const AVATAR_STORAGE_KEY = "conversation.ai.avatarOverrides";
+const AVATAR_RENDER_SIZE = 256;
+const MAX_AVATAR_FILE_SIZE = 5 * 1024 * 1024;
+const SUPPORTED_AVATAR_TYPES = /^image\/(?:png|jpe?g|webp|gif)$/i;
 const STAGES = [
   "opening",
   "accept",
@@ -786,6 +790,9 @@ let currentMessages = [];
 let currentConfig = {};
 let debounceTimer = 0;
 let lastLanguage = "en";
+let avatarOverrides = loadAvatarOverrides();
+let avatarInput = null;
+let pendingAvatarSpeakerId = "";
 
 function makeRomanceTemplates({ social, support }) {
   const mapRows = (rows) => Object.fromEntries(STAGES.map((stage, index) => [
@@ -978,6 +985,142 @@ function makeScriptSpeakerResolver() {
 function displayName(person) {
   if (person.id !== "me") return person.name;
   return locale().units.me;
+}
+
+function isAvatarDataUrl(value) {
+  return typeof value === "string" && /^data:image\/(?:png|jpe?g|webp|gif);base64,/i.test(value);
+}
+
+function loadAvatarOverrides() {
+  try {
+    const raw = window.localStorage?.getItem(AVATAR_STORAGE_KEY);
+    const parsed = raw ? JSON.parse(raw) : {};
+    if (!parsed || typeof parsed !== "object") return {};
+    return Object.fromEntries(
+      Object.entries(parsed).filter(([speakerId, avatarUrl]) => speakerId && isAvatarDataUrl(avatarUrl))
+    );
+  } catch {
+    return {};
+  }
+}
+
+function saveAvatarOverrides() {
+  try {
+    window.localStorage?.setItem(AVATAR_STORAGE_KEY, JSON.stringify(avatarOverrides));
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+function applyAvatarOverridesToCurrentPreview() {
+  const result = applyAvatarOverridesToPreview(currentConfig, currentMessages, avatarOverrides);
+  currentConfig = result.config;
+  currentMessages = result.messages;
+}
+
+function speakerById(speakerId) {
+  return [
+    ...(currentConfig.participants || []),
+    ...currentMessages.map((message) => message.speaker).filter(Boolean)
+  ].find((speaker) => speaker.id === speakerId);
+}
+
+function readFileAsDataUrl(file) {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = () => resolve(reader.result);
+    reader.onerror = () => reject(new Error("Unable to read the selected image."));
+    reader.readAsDataURL(file);
+  });
+}
+
+function loadAvatarImage(src) {
+  return new Promise((resolve, reject) => {
+    const image = new Image();
+    image.onload = () => resolve(image);
+    image.onerror = () => reject(new Error("Unable to load the selected image."));
+    image.src = src;
+  });
+}
+
+async function prepareAvatarDataUrl(file) {
+  if (!file || (file.type && !SUPPORTED_AVATAR_TYPES.test(file.type)) || file.size > MAX_AVATAR_FILE_SIZE) {
+    throw new Error("Choose a PNG, JPG, WebP, or GIF image under 5 MB.");
+  }
+
+  const source = await readFileAsDataUrl(file);
+  const image = await loadAvatarImage(source);
+  const sourceWidth = image.naturalWidth || image.width;
+  const sourceHeight = image.naturalHeight || image.height;
+  const sourceSize = Math.min(sourceWidth, sourceHeight);
+  if (!sourceSize) throw new Error("Choose a valid image file.");
+
+  const canvas = document.createElement("canvas");
+  canvas.width = AVATAR_RENDER_SIZE;
+  canvas.height = AVATAR_RENDER_SIZE;
+  const context = canvas.getContext("2d");
+  if (!context) throw new Error("This browser could not process the image.");
+
+  context.fillStyle = "#ffffff";
+  context.fillRect(0, 0, AVATAR_RENDER_SIZE, AVATAR_RENDER_SIZE);
+  context.drawImage(
+    image,
+    (sourceWidth - sourceSize) / 2,
+    (sourceHeight - sourceSize) / 2,
+    sourceSize,
+    sourceSize,
+    0,
+    0,
+    AVATAR_RENDER_SIZE,
+    AVATAR_RENDER_SIZE
+  );
+  return canvas.toDataURL("image/jpeg", 0.88);
+}
+
+function ensureAvatarInput() {
+  if (avatarInput) return avatarInput;
+  avatarInput = document.createElement("input");
+  avatarInput.type = "file";
+  avatarInput.accept = "image/png,image/jpeg,image/webp,image/gif";
+  avatarInput.hidden = true;
+  avatarInput.addEventListener("change", handleAvatarInputChange);
+  document.body.append(avatarInput);
+  return avatarInput;
+}
+
+function openAvatarPicker(speakerId) {
+  if (!speakerById(speakerId)) return;
+  pendingAvatarSpeakerId = speakerId;
+  const input = ensureAvatarInput();
+  input.value = "";
+  input.click();
+}
+
+async function handleAvatarInputChange(event) {
+  const input = event.currentTarget;
+  const file = input.files?.[0];
+  const speakerId = pendingAvatarSpeakerId;
+  pendingAvatarSpeakerId = "";
+  if (!file || !speakerId) return;
+
+  try {
+    const avatarUrl = await prepareAvatarDataUrl(file);
+    const previousOverrides = avatarOverrides;
+    avatarOverrides = { ...avatarOverrides, [speakerId]: avatarUrl };
+    if (!saveAvatarOverrides()) {
+      avatarOverrides = previousOverrides;
+      throw new Error("The image was too large to save in this browser.");
+    }
+    showApiNotice("");
+    applyAvatarOverridesToCurrentPreview();
+    renderAll();
+    setStatus("Avatar updated");
+  } catch (error) {
+    showApiNotice(error.message || "Choose a PNG, JPG, WebP, or GIF image under 5 MB.");
+  } finally {
+    input.value = "";
+  }
 }
 
 function interpolate(template, values) {
@@ -1177,11 +1320,68 @@ async function generateConversation() {
 
 function renderAll() {
   currentConfig.styleMode = els.style.value;
+  applyAvatarOverridesToCurrentPreview();
   els.frame.dataset.style = currentConfig.styleMode;
   renderHeader();
   renderChat();
   renderScript();
   renderCount();
+}
+
+function avatarActionLabel(speaker) {
+  return `Change avatar for ${speaker ? displayName(speaker) : "speaker"}`;
+}
+
+function renderProfileAvatar(target) {
+  const existingImage = els.profileAvatar.querySelector(".custom-avatar-image");
+  els.profileAvatar.dataset.avatarSpeakerId = target.id || "";
+  els.profileAvatar.disabled = !target.id;
+  els.profileAvatar.classList.toggle("has-image", Boolean(target.avatarUrl));
+  els.profileAvatar.setAttribute("aria-label", avatarActionLabel(target));
+  els.profileAvatar.title = avatarActionLabel(target);
+  els.headerAvatar.textContent = target.initials || "D";
+
+  if (!target.avatarUrl) {
+    existingImage?.remove();
+    return;
+  }
+
+  const image = existingImage || document.createElement("img");
+  image.className = "custom-avatar-image";
+  image.alt = "";
+  image.src = target.avatarUrl;
+  if (!existingImage) els.profileAvatar.append(image);
+}
+
+function renderMessageAvatar(avatar, speaker, isWeChat) {
+  avatar.textContent = "";
+  avatar.dataset.avatarSpeakerId = speaker.id;
+  avatar.setAttribute("aria-label", avatarActionLabel(speaker));
+  avatar.title = avatarActionLabel(speaker);
+  avatar.classList.toggle("has-image", Boolean(speaker.avatarUrl));
+
+  if (speaker.avatarUrl) {
+    const avatarImage = document.createElement("img");
+    avatarImage.className = isWeChat ? "figma-message-avatar custom-avatar-image" : "custom-avatar-image";
+    avatarImage.src = speaker.avatarUrl;
+    avatarImage.alt = "";
+    avatar.append(avatarImage);
+    return;
+  }
+
+  if (isWeChat) {
+    const avatarImage = document.createElement("img");
+    avatarImage.className = "figma-message-avatar";
+    avatarImage.src = WECHAT_MESSAGE_AVATARS[speaker.side] || WECHAT_MESSAGE_AVATARS.them;
+    avatarImage.alt = "";
+    avatar.append(avatarImage);
+    return;
+  }
+
+  avatar.style.background = speaker.color;
+  const avatarText = document.createElement("span");
+  avatarText.textContent = speaker.initials;
+  avatar.append(avatarText);
 }
 
 function renderHeader() {
@@ -1190,8 +1390,8 @@ function renderHeader() {
   const target = participants.find((person) => person.side !== "me") || participants[0] || { name: "DM", initials: "D" };
   els.title.textContent = currentConfig.title || target.name;
   els.subtitle.textContent = target.handle || data.units.online;
-  els.headerAvatar.textContent = target.initials;
   els.profileAvatar.style.setProperty("--avatar-color", target.color);
+  renderProfileAvatar(target);
   els.clock.textContent = new Date().toLocaleTimeString(data.htmlLang, { hour: "2-digit", minute: "2-digit", hour12: false });
 }
 
@@ -1214,20 +1414,10 @@ function renderChat() {
     if (grouped) row.classList.add("grouped");
     if (message.speaker.side !== "me" && !grouped) row.classList.add("show-name");
 
-    const avatar = document.createElement("div");
+    const avatar = document.createElement("button");
+    avatar.type = "button";
     avatar.className = "avatar";
-    if (isWeChat) {
-      const avatarImage = document.createElement("img");
-      avatarImage.className = "figma-message-avatar";
-      avatarImage.src = WECHAT_MESSAGE_AVATARS[message.speaker.side];
-      avatarImage.alt = "";
-      avatar.append(avatarImage);
-    } else {
-      avatar.style.background = message.speaker.color;
-      const avatarText = document.createElement("span");
-      avatarText.textContent = message.speaker.initials;
-      avatar.append(avatarText);
-    }
+    renderMessageAvatar(avatar, message.speaker, isWeChat);
 
     const wrap = document.createElement("div");
     wrap.className = "bubble-wrap";
@@ -1302,6 +1492,7 @@ function updateMessageFromEditor(editor) {
     });
     currentConfig.participants = uniqueParticipantsFromMessages(currentMessages);
     currentConfig.title = makeChatTitle(currentConfig.scene || "daily", currentConfig.topic || "", currentConfig.participants);
+    applyAvatarOverridesToCurrentPreview();
     editor.removeAttribute("aria-invalid");
     renderHeader();
     renderChat();
@@ -1620,6 +1811,22 @@ function loadCanvasAsset(src) {
   return canvasAssetCache.get(src);
 }
 
+async function loadCanvasAvatarAssets(speakers) {
+  const sources = Array.from(new Set(speakers.map((speaker) => speaker?.avatarUrl).filter(Boolean)));
+  const entries = await Promise.all(sources.map(async (src) => {
+    try {
+      return [src, await loadCanvasAsset(src)];
+    } catch {
+      return [src, null];
+    }
+  }));
+  return new Map(entries.filter(([, asset]) => asset));
+}
+
+function canvasAvatarAsset(avatarAssets, speaker) {
+  return speaker?.avatarUrl ? avatarAssets.get(speaker.avatarUrl) : null;
+}
+
 function drawCoverCanvasImage(ctx, image, x, y, width, height, radius) {
   const sourceWidth = image.naturalWidth || image.width;
   const sourceHeight = image.naturalHeight || image.height;
@@ -1638,13 +1845,15 @@ function drawCoverCanvasImage(ctx, image, x, y, width, height, radius) {
 
 async function renderWeChatCanvas() {
   const data = locale();
-  const [voiceAsset, stickerAsset, addAsset, themAvatarAsset, meAvatarAsset] = await Promise.all([
+  const [voiceAsset, stickerAsset, addAsset, themAvatarAsset, meAvatarAsset, customAvatarAssets] = await Promise.all([
     loadCanvasAsset("/assets/wechat-composer/voice.svg"),
     loadCanvasAsset("/assets/wechat-composer/sticker.svg"),
     loadCanvasAsset("/assets/wechat-composer/add2.svg"),
     loadCanvasAsset(WECHAT_MESSAGE_AVATARS.them),
-    loadCanvasAsset(WECHAT_MESSAGE_AVATARS.me)
+    loadCanvasAsset(WECHAT_MESSAGE_AVATARS.me),
+    loadCanvasAvatarAssets(currentMessages.map((message) => message.speaker))
   ]);
+  const defaultAvatarAssets = { them: themAvatarAsset, me: meAvatarAsset };
   const scale = 2;
   const width = 375;
   const statusH = 44;
@@ -1712,7 +1921,10 @@ async function renderWeChatCanvas() {
     const bubbleX = isMe ? avatarX - 10 - bubbleW : avatarX + 48;
     const bubbleY = y + Math.max(0, (38 - bubbleH) / 2);
 
-    drawCoverCanvasImage(ctx, isMe ? meAvatarAsset : themAvatarAsset, avatarX, y, 38, 38, 4);
+    const avatarAsset = canvasAvatarAsset(customAvatarAssets, message.speaker)
+      || defaultAvatarAssets[message.speaker.side]
+      || themAvatarAsset;
+    drawCoverCanvasImage(ctx, avatarAsset, avatarX, y, 38, 38, 4);
 
     ctx.fillStyle = isMe ? "#95ec69" : "#ffffff";
     roundRect(ctx, bubbleX, bubbleY, bubbleW, bubbleH, 4);
@@ -1770,6 +1982,8 @@ async function renderCanvas() {
   const fontFamily = "-apple-system, BlinkMacSystemFont, Segoe UI, sans-serif";
   const measure = document.createElement("canvas").getContext("2d");
   measure.font = `17px ${fontFamily}`;
+  const target = (currentConfig.participants || []).find((person) => person.side !== "me") || { initials: "D", color: "#4f5bd5" };
+  const customAvatarAssets = await loadCanvasAvatarAssets([target, ...currentMessages.map((message) => message.speaker)]);
 
   const measured = currentMessages.map((message) => {
     const bubbleMax = message.speaker.side === "me" ? maxBubble : maxBubble - 42;
@@ -1832,24 +2046,28 @@ async function renderCanvas() {
 
   drawBackIcon(ctx, screenX + 20, headerY + 24, 26);
 
-  const target = (currentConfig.participants || []).find((person) => person.side !== "me") || { initials: "D", color: "#4f5bd5" };
   const avatarX = screenX + 68;
   const avatarY = headerY + 17;
-  const profileGrad = ctx.createLinearGradient(avatarX, avatarY, avatarX + 36, avatarY + 36);
-  profileGrad.addColorStop(0, "#e3d8c8");
-  profileGrad.addColorStop(1, target.color || "#6471d9");
-  ctx.fillStyle = profileGrad;
-  ctx.beginPath();
-  ctx.arc(avatarX + 18, avatarY + 18, 18, 0, Math.PI * 2);
-  ctx.fill();
-  ctx.fillStyle = "rgba(255,255,255,0.72)";
-  ctx.beginPath();
-  ctx.arc(avatarX + 24, avatarY + 11, 5, 0, Math.PI * 2);
-  ctx.fill();
+  const headerAvatarAsset = canvasAvatarAsset(customAvatarAssets, target);
+  if (headerAvatarAsset) {
+    drawCoverCanvasImage(ctx, headerAvatarAsset, avatarX, avatarY, 36, 36, 18);
+  } else {
+    const profileGrad = ctx.createLinearGradient(avatarX, avatarY, avatarX + 36, avatarY + 36);
+    profileGrad.addColorStop(0, "#e3d8c8");
+    profileGrad.addColorStop(1, target.color || "#6471d9");
+    ctx.fillStyle = profileGrad;
+    ctx.beginPath();
+    ctx.arc(avatarX + 18, avatarY + 18, 18, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.fillStyle = "rgba(255,255,255,0.72)";
+    ctx.beginPath();
+    ctx.arc(avatarX + 24, avatarY + 11, 5, 0, Math.PI * 2);
+    ctx.fill();
 
-  ctx.fillStyle = "#ffffff";
-  ctx.font = `800 12px ${fontFamily}`;
-  drawCenteredText(ctx, target.initials, avatarX + 18, avatarY + 23);
+    ctx.fillStyle = "#ffffff";
+    ctx.font = `800 12px ${fontFamily}`;
+    drawCenteredText(ctx, target.initials, avatarX + 18, avatarY + 23);
+  }
 
   ctx.fillStyle = "#0d0f14";
   ctx.font = `850 18px ${fontFamily}`;
@@ -1881,14 +2099,19 @@ async function renderCanvas() {
 
     if (!isMe) {
       if (!grouped) {
-        ctx.fillStyle = message.speaker.color || "#4f5bd5";
-        ctx.beginPath();
-        ctx.arc(avatarXMsg + 15, avatarYMsg + 15, 15, 0, Math.PI * 2);
-        ctx.fill();
-        ctx.fillStyle = "rgba(255,255,255,0.68)";
-        ctx.beginPath();
-        ctx.arc(avatarXMsg + 21, avatarYMsg + 10, 4, 0, Math.PI * 2);
-        ctx.fill();
+        const messageAvatarAsset = canvasAvatarAsset(customAvatarAssets, message.speaker);
+        if (messageAvatarAsset) {
+          drawCoverCanvasImage(ctx, messageAvatarAsset, avatarXMsg, avatarYMsg, avatarSize, avatarSize, avatarSize / 2);
+        } else {
+          ctx.fillStyle = message.speaker.color || "#4f5bd5";
+          ctx.beginPath();
+          ctx.arc(avatarXMsg + 15, avatarYMsg + 15, 15, 0, Math.PI * 2);
+          ctx.fill();
+          ctx.fillStyle = "rgba(255,255,255,0.68)";
+          ctx.beginPath();
+          ctx.arc(avatarXMsg + 21, avatarYMsg + 10, 4, 0, Math.PI * 2);
+          ctx.fill();
+        }
       }
       if (!grouped) {
         ctx.fillStyle = "#787d88";
@@ -2009,6 +2232,10 @@ function bindEvents() {
   });
   els.scene.addEventListener("change", generatePreview);
   els.style.addEventListener("change", renderAll);
+  els.frame.addEventListener("click", (event) => {
+    const avatar = event.target.closest("[data-avatar-speaker-id]");
+    if (avatar) openAvatarPicker(avatar.dataset.avatarSpeakerId);
+  });
   els.script.addEventListener("input", (event) => {
     const editor = event.target.closest("#scriptEditor");
     if (editor) updateMessageFromEditor(editor);

@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import { buildConversationInstructions, normalizeConversation, validateGeneratePayload } from "../lib/conversation.js";
-import { mapConversationForPreview, updatePreviewMessage, updatePreviewMessagesFromScript } from "../lib/studio-data.js";
+import { applyAvatarOverridesToPreview, mapConversationForPreview, updatePreviewMessage, updatePreviewMessagesFromScript } from "../lib/studio-data.js";
 
 const request = { topic: "A founder announces a beta launch", scene: "daily", language: "en", rounds: 4 };
 
@@ -76,7 +76,7 @@ test("instructions define participant side enum values", () => {
   assert.match(text, /side 'them'/);
 });
 
-test("client mapping keeps ordered speakers and renderer metadata", () => {
+test("client mapping uses the chat counterpart as the renderer title", () => {
   const result = mapConversationForPreview({
     title: "Launch",
     participants: [{ id: "me", name: "Mina", side: "me" }, { id: "sam", name: "Sam", side: "them" }],
@@ -87,9 +87,33 @@ test("client mapping keeps ordered speakers and renderer metadata", () => {
     rng: () => 0,
     formatTime: (_date, index) => `12:0${index}`
   });
-  assert.equal(result.config.title, "Launch");
+  assert.equal(result.config.title, "Sam");
   assert.equal(result.messages[1].speaker.name, "Sam");
   assert.equal(result.messages[3].time, "12:03");
+});
+
+test("avatar overrides update matching participants and message speakers", () => {
+  const config = {
+    participants: [
+      { id: "me", name: "Mina", side: "me" },
+      { id: "sam", name: "Sam", side: "them" }
+    ]
+  };
+  const messages = [
+    { id: "m1", speaker: config.participants[0], text: "The waitlist is live.", time: "12:00" },
+    { id: "m2", speaker: config.participants[1], text: "I will share it now.", time: "12:01" }
+  ];
+
+  const result = applyAvatarOverridesToPreview(config, messages, {
+    me: "data:image/png;base64,me",
+    sam: "data:image/png;base64,sam"
+  });
+
+  assert.equal(result.config.participants[0].avatarUrl, "data:image/png;base64,me");
+  assert.equal(result.messages[0].speaker.avatarUrl, "data:image/png;base64,me");
+  assert.equal(result.config.participants[1].avatarUrl, "data:image/png;base64,sam");
+  assert.equal(result.messages[1].speaker, result.config.participants[1]);
+  assert.equal(config.participants[0].avatarUrl, undefined);
 });
 
 test("script edits update one preview message without changing renderer metadata", () => {

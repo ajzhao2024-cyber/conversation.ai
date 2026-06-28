@@ -406,8 +406,11 @@ input[type="number"]::-webkit-outer-spin-button {
   width: 42px;
   height: 42px;
   place-items: center;
+  padding: 0;
+  border: 0;
   border-radius: 999px;
   background: conic-gradient(from 215deg, #feda75, #fa7e1e, #d62976, #962fbf, #4f5bd5, #feda75);
+  cursor: pointer;
 }
 
 .profile-avatar::after {
@@ -436,6 +439,18 @@ input[type="number"]::-webkit-outer-spin-button {
   height: 34px;
   background: var(--avatar-color, #20242d);
   font-size: 14px;
+}
+
+.profile-avatar.has-image span {
+  display: none;
+}
+
+.profile-avatar .custom-avatar-image {
+  display: block;
+  width: 34px;
+  height: 34px;
+  border-radius: 999px;
+  object-fit: cover;
 }
 
 .profile-copy {
@@ -547,14 +562,26 @@ input[type="number"]::-webkit-outer-spin-button {
   width: 30px;
   height: 30px;
   place-items: center;
+  padding: 0;
+  border: 0;
   border-radius: 999px;
   background: #4f5bd5;
+  cursor: pointer;
+  overflow: hidden;
 }
 
 .avatar span {
   width: 30px;
   height: 30px;
   font-size: 11px;
+}
+
+.avatar .custom-avatar-image {
+  display: block;
+  width: 100%;
+  height: 100%;
+  border-radius: inherit;
+  object-fit: cover;
 }
 
 .message-row.me .avatar {
