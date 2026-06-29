@@ -92,6 +92,13 @@ test("homepage is positioned as an AI chat screenshot generator", async () => {
   assert.match(html, /For mockups, storytelling, education, and content creation/);
 });
 
+test("homepage exposes the Google Search Console verification tag", async () => {
+  const html = await readFile(new URL("../index.html", import.meta.url), "utf8");
+  const head = html.match(/<head>([\s\S]*?)<\/head>/)?.[1] || "";
+
+  assert.match(head, /<meta name="google-site-verification" content="OuH0ImvKXQ04WpU1fBrt-nlfke321KoVlgM0glq_OmQ" \/>/);
+});
+
 test("studio exposes template chips and query-prefill copy", async () => {
   const html = await readFile(new URL("../studio/index.html", import.meta.url), "utf8");
 
