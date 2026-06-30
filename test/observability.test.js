@@ -17,6 +17,30 @@ const allPublicPages = [...pages, ...seoPages];
 const adsenseClient = "ca-pub-9870889480354395";
 const adsenseHost = "https://pagead2.googlesyndication.com";
 const run = promisify(execFile);
+const generatorRoutes = [
+  "/studio/",
+  "/instagram-dm-generator/",
+  "/fake-instagram-dm-generator/",
+  "/wechat-chat-generator/",
+  "/chat-screenshot-generator/",
+  "/ai-conversation-generator/"
+];
+
+function extractJsonLd(html) {
+  return [...html.matchAll(/<script type="application\/ld\+json">([\s\S]*?)<\/script>/g)].map((match) => {
+    return JSON.parse(match[1]);
+  });
+}
+
+function schemaTypes(schemaDocuments) {
+  return schemaDocuments.flatMap((schema) => {
+    if (Array.isArray(schema["@graph"])) {
+      return schema["@graph"].map((entry) => entry["@type"]);
+    }
+
+    return schema["@type"] ? [schema["@type"]] : [];
+  });
+}
 
 test("public pages load Vercel Web Analytics and Speed Insights", async () => {
   for (const page of allPublicPages) {
@@ -125,6 +149,52 @@ test("SEO pages include canonical metadata, FAQ, demo links, and safety copy", a
   }
 });
 
+test("public pages expose valid structured data for search engines", async () => {
+  for (const page of allPublicPages) {
+    const html = await readFile(new URL(`../${page}`, import.meta.url), "utf8");
+    const schemas = extractJsonLd(html);
+    const types = schemaTypes(schemas);
+
+    assert.ok(schemas.length > 0, `${page} should include JSON-LD`);
+    assert.ok(types.includes("SoftwareApplication"), `${page} should describe the web tool`);
+
+    if (seoPages.includes(page)) {
+      assert.ok(types.includes("FAQPage"), `${page} should expose visible FAQ content`);
+      assert.ok(types.includes("BreadcrumbList"), `${page} should expose breadcrumbs`);
+    }
+
+    if (page === "index.html") {
+      assert.ok(types.includes("WebSite"), "homepage should describe the site");
+      assert.ok(types.includes("Organization"), "homepage should describe the organization");
+    }
+
+    if (page === "studio/index.html") {
+      assert.ok(types.includes("BreadcrumbList"), "studio should expose breadcrumbs");
+    }
+  }
+});
+
+test("landing pages expose internal links to generator hubs", async () => {
+  for (const page of ["index.html", ...seoPages]) {
+    const html = await readFile(new URL(`../${page}`, import.meta.url), "utf8");
+
+    assert.match(html, /aria-label="Generator links"/);
+    for (const route of generatorRoutes) {
+      assert.match(html, new RegExp(`href="${route.replaceAll("/", "\\/")}"`), `${page} should link to ${route}`);
+    }
+  }
+});
+
+test("WeChat language pages declare reciprocal hreflang", async () => {
+  for (const page of ["wechat-chat-generator/index.html", "zh/wechat-chat-generator/index.html"]) {
+    const html = await readFile(new URL(`../${page}`, import.meta.url), "utf8");
+
+    assert.match(html, /rel="alternate" hreflang="en" href="https:\/\/conversation\.autos\/wechat-chat-generator\/"/);
+    assert.match(html, /rel="alternate" hreflang="zh-CN" href="https:\/\/conversation\.autos\/zh\/wechat-chat-generator\/"/);
+    assert.match(html, /rel="alternate" hreflang="x-default" href="https:\/\/conversation\.autos\/wechat-chat-generator\/"/);
+  }
+});
+
 test("crawl assets expose conversation.autos public routes", async () => {
   const robots = await readFile(new URL("../robots.txt", import.meta.url), "utf8");
   const sitemap = await readFile(new URL("../sitemap.xml", import.meta.url), "utf8");
@@ -133,6 +203,10 @@ test("crawl assets expose conversation.autos public routes", async () => {
   for (const route of ["/", "/studio/", "/instagram-dm-generator/", "/wechat-chat-generator/", "/chat-screenshot-generator/", "/ai-conversation-generator/", "/fake-instagram-dm-generator/", "/zh/wechat-chat-generator/"]) {
     assert.match(sitemap, new RegExp(`<loc>https://conversation\\.autos${route}</loc>`));
   }
+  assert.match(sitemap, /<lastmod>2026-06-30<\/lastmod>/);
+  assert.match(sitemap, /<changefreq>weekly<\/changefreq>/);
+  assert.match(sitemap, /hreflang="zh-CN" href="https:\/\/conversation\.autos\/zh\/wechat-chat-generator\/"/);
+  assert.match(sitemap, /hreflang="x-default" href="https:\/\/conversation\.autos\/wechat-chat-generator\/"/);
 });
 
 test("static build includes modules imported by the studio client", async () => {
